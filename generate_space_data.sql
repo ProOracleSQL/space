@@ -2,311 +2,234 @@
 
 This is all very experimental, do not use this yet.
 
-This file is meant to download, load, and transform the awesome JSR Launch Vehicle Database into an Oracle database.
+This file loads and transforms data from the awesome JSR Launch Vehicle Database sdb.tar.gz file into an Oracle database.
 
 */
 
 
-
 --------------------------------------------------------------------------------
---#1: Create ACLs to enable downloading files from the internet.
---From Mark Harrison: https://dba.stackexchange.com/a/115110/3336
+--#1: Create directories.  You may also need to grant permission on the folder.
+--  This is usually the ora_dba group on windows, or the oracle users on Unix.
 --------------------------------------------------------------------------------
-begin
-    dbms_network_acl_admin.create_acl(
-        acl         => 'www',
-        description => 'WWW ACL',
-        principal   => user,
-        is_grant    => true,
-        privilege   => 'connect'
-    );
 
-    dbms_network_acl_admin.assign_acl(
-        acl        => 'www',
-        host       => '*',
-        lower_port => 80
-    );
-end;
-/
-
---This step is oddly buggy.  Sometimes you need to delete and recreate ACLs.
-/*
-begin
-	dbms_network_acl_admin.drop_acl('WWW');
-end;
-/
-*/
+create or replace directory sdb as 'C:\space\sdb.tar';
+create or replace directory sdb_sdb as 'C:\space\sdb.tar\sdb\';
 
 
 
 --------------------------------------------------------------------------------
---#2: Create procedure to download files from the Internet.
---From Tim Hall: https://oracle-base.com/articles/misc/retrieving-html-and-binaries-into-tables-over-http
+--#2. Auto-manually generate external files to load the file.
+-- This is a semi-automated process because the files are not 100% formatted correctly.
 --------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION get_clob_from_url(p_url  IN  VARCHAR2) RETURN CLOB AS
-  l_http_request   UTL_HTTP.req;
-  l_http_response  UTL_HTTP.resp;
-  l_clob           CLOB;
-  l_text           VARCHAR2(32767);
-BEGIN
-  -- Initialize the CLOB.
-  DBMS_LOB.createtemporary(l_clob, FALSE);
-
-  -- Make a HTTP request and get the response.
-  l_http_request  := UTL_HTTP.begin_request(p_url);
-  l_http_response := UTL_HTTP.get_response(l_http_request);
-
-  -- Copy the response into the CLOB.
-  BEGIN
-    LOOP
-      UTL_HTTP.read_text(l_http_response, l_text, 32766);
-      DBMS_LOB.writeappend(l_clob, LENGTH(l_text), l_text);
-    END LOOP;
-  EXCEPTION
-    WHEN UTL_HTTP.end_of_body THEN
-      UTL_HTTP.end_response(l_http_response);
-  END;
-
-  -- Return the data.
-  RETURN l_clob;
-
-EXCEPTION
-  WHEN OTHERS THEN
-    UTL_HTTP.end_response(l_http_response);
-    DBMS_LOB.freetemporary(l_clob);
-    RAISE;
-END get_clob_from_url;
-/
-
-
-
---------------------------------------------------------------------------------
---#3: Create table to hold files.
---------------------------------------------------------------------------------
-create table space_files
-(
-	url            varchar2(4000) not null,
-	name           varchar2(100) not null,
-	date_retrieved date not null,
-	contents       clob not null
-);
-
-
-
---------------------------------------------------------------------------------
---#4: Download and store relevant files.
---------------------------------------------------------------------------------
-declare
-	v_url varchar2(4000);
+create or replace function get_external_table_partial_ddl(p_directory varchar2, p_file_name varchar2) return varchar2 is
 	v_clob clob;
+	v_end_position number;
+	v_format_description varchar2(32767);
+	v_skip_count number;
+	v_width_in_bytes number;
+	v_number_of_fields number;
+
+
+	type string_table is table of varchar2(32767);
+	type number_table is table of number;
+	v_column_names string_table := string_table();
+	v_display_format string_table := string_table();
+	v_byte_start_positions number_table := number_table();
+
+	v_column_sql varchar2(32767);
+	v_loader_fields varchar2(32767);
 begin
-	v_url := 'http://planet4589.org/space/log/launchlog.txt';
-	insert into space_files values(v_url, 'launch_log', sysdate, get_clob_from_url(v_url));
-	commit;
+	--Read the CLOB.
+	v_clob := dbms_xslprocessor.read2clob(flocation => upper(p_directory), fname => p_file_name);
 
-	v_url := 'http://planet4589.org/space/log/satcat.txt';
-	insert into space_files values(v_url, 'satcat', sysdate, get_clob_from_url(v_url));
-	commit;
+	--Get everything up until the first END.
+	v_end_position := dbms_lob.instr(v_clob, chr(10)||'END');
 
-end;
+	--Ensure there was a format description found.
+	if v_end_position = 0 then
+		raise_application_error(-20000, 'Could not find format description.');
+	end if;
+
+	v_format_description := dbms_lob.substr(v_clob, v_end_position, 1);
+	v_skip_count := regexp_count(v_format_description, chr(10)) + 2;
+
+	v_width_in_bytes := to_number(regexp_substr(v_format_description, 'NAXIS1\s*=\s*([0-9]+)', 1, 1, '', 1));
+	v_number_of_fields := to_number(regexp_substr(v_format_description, 'TFIELDS\s*=\s*([0-9]+)', 1, 1, '', 1));
+
+	--Populate arrays of the values.
+	for i in 1 .. v_number_of_fields loop
+		v_column_names.extend;
+		v_display_format.extend;
+		v_byte_start_positions.extend;
+
+		v_column_names(v_column_names.count) := regexp_substr(v_format_description, 'TTYPE[0-9]*\s*=\s*''([^'']*)''', 1, i, '', 1);
+		v_display_format(v_display_format.count) := regexp_substr(v_format_description, 'TDISP[0-9]*\s*=\s*''([^'']*)''', 1, i, '', 1);
+		v_byte_start_positions(v_byte_start_positions.count) := regexp_substr(v_format_description, 'TBCOL[0-9]*\s*=\s*([0-9]*)', 1, i, '', 1);
+	end loop;
+
+	--Create a list of columns.
+	for i in 1 .. v_number_of_fields loop
+		v_column_sql := v_column_sql || ',' || chr(10) || '	' || v_column_names(i) ||
+			' varchar2(' ||
+			case
+				when i = v_number_of_fields then (v_width_in_bytes - v_byte_start_positions(i) + 1)
+				else (v_byte_start_positions(i+1) - v_byte_start_positions(i))
+			end || ')';
+
+		v_loader_fields := v_loader_fields || ',' || chr(10) || '			' || v_column_names(i) || ' (' ||
+			v_byte_start_positions(i) || ':' ||
+			case
+				when i = v_number_of_fields then (v_width_in_bytes)
+				else v_byte_start_positions(i+1) - 1
+			end || ')' || ' ' ||
+			' char(' ||
+			case
+				when i = v_number_of_fields then (v_width_in_bytes - v_byte_start_positions(i) + 1)
+				else (v_byte_start_positions(i+1) - v_byte_start_positions(i))
+			end || ')';
+	end loop;
+
+	--Return the table columns and the SQL Loader columns.
+	return
+		substr(v_column_sql, 3) || chr(10) || chr(10) ||
+		'		skip ' || v_skip_count || chr(10) || chr(10) ||
+		substr(v_loader_fields, 3);
+end get_external_table_partial_ddl;
 /
 
 
 
+
+
+
 --------------------------------------------------------------------------------
---#5: Create staging tables.
+--#3. Create external tables.
 --------------------------------------------------------------------------------
 
-create table launch_staging
+select get_external_table_partial_ddl('sdb_sdb', 'Orgs') from dual;
+
+
+select get_external_table_partial_ddl('sdb_sdb', 'stages') from dual;
+
+/*
+organization
+family
+vehicle
+engine
+stage
+vehicle_stage
+reference
+site
+platform
+launch
+*/
+
+
+Explanations of the data files
+
+    1.0: Organizations
+
+    1.1: Families
+
+    1.2: Designations
+
+    1.3: The launch vehicle list
+
+    1.4: The launch vehicle stages list
+
+    1.5: The stages database
+
+    1.6: The engines database
+
+    1.7: The launch sites database
+
+    1.8: The list of launch time references
+
+    1.9. Explanation of columns in the launch list data files
+
+The launch vehicle data files
+
+    LAUNCH LIST SORTED BY FAMILY [70780 launches]
+    LAUNCH LIST SORTED BY DES [70780 launches]
+    LV [Launch Vehicles]
+    LV_Stages [Launch Vehicle Stages]
+    Stages [Data on each stage]
+    Family [List of Stage Families]
+    Sites [List of launch sites] and Platforms [List of launch platforms, esp. marine and air]
+    Refs [List of references for launch times] 
+
+
+
+
+drop table stages_staging;
+
+--WARNING: This file was manually adjusted.
+create table stages_staging
 (
-	line_number           number,
-	launch                varchar2(13),
-	launch_date           date,
-	cospar                varchar2(21),
-	payload_name          varchar2(31),
-	original_payload_name varchar2(26),
-	satcat                varchar2(9),
-	vehicle_type          varchar2(23),
-	vehicle_serial_number varchar2(16),
-	site                  varchar2(33),
-	success               varchar2(5),
-	reference             varchar2(20)
-) compress nologging;
-
-comment on table launch_staging is 'See this webiste for a description of the data: http://planet4589.org/space/log/satcat.html.';
-
-
-create table satellite_staging
+	Stage_Name varchar2(21),
+	Stage_Family varchar2(21),
+	Stage_Manufacturer varchar2(21),
+	Stage_Alt_Name varchar2(21),
+	Length varchar2(6),
+	Diameter varchar2(6),
+	Launch_Mass varchar2(8), --8, not 7
+	Dry_Mass varchar2(10), --10, not 11
+	Thrust varchar2(9),
+	Duration varchar2(7),
+	Engine varchar2(19),
+	NEng varchar2(3),
+	Class varchar2(1)
+)
+organization external
 (
-	line_number    number not null,
-	satcat         varchar2(7),
-	cospar         varchar2(23),
-	official_name  varchar2(40),
-	secondary_name varchar2(24),
-	owner_operator varchar2(12),
-	launch_date    date,
-	current_status varchar2(16),
-	status_date    date,
-	orbit_date     date,
-	orbit_class    varchar2(8),
-	orbit_period   number,
-	perigee        number,
-	apogee         number,
-	inclination    number
-) compress nologging;
-
-comment on table satellite_staging is 'See this website for a description of the data: http://planet4589.org/space/log/satcat.html';
-
-
-
---------------------------------------------------------------------------------
---#6: Transform files.
---This processes everything in PL/SQL.  For larger data sets it might be better
---to use external tables.  I don't do that to avoid a filesystem dependency.
---------------------------------------------------------------------------------
-declare
-	---------------------------------------
-	--Load launch data.
-	procedure load_launch_staging is
-		v_launch_log clob;
-		v_last_position number := 0;
-		v_position number := 0;
-		v_line_number number := 0;
-		v_line varchar2(32767);
-	begin
-		--Get file.
-		select contents into v_launch_log from space_files where name = 'launch_log';
-
-		--Loop through lines and process them.
-		loop
-			v_line_number := v_line_number + 1;
-			v_last_position := v_position;
-			v_position := dbms_lob.instr(lob_loc => v_launch_log, pattern => chr(10), nth => v_line_number);
-			exit when v_position = 0; --For testing: or v_line_number >= 500;
-
-			--Process everything after the first two header lines.
-			if v_line_number >= 3 then
-				v_line := dbms_lob.substr(lob_loc => v_launch_log, amount => v_position - v_last_position - 1, offset => v_last_position + 1);
-
-				begin
-					insert into launch_staging
-					values(
-						v_line_number,
-						trim(substr(v_line, 1, 13)),
-						--Cleanup and format the date.  Ignore any question marks.
-						to_date(replace(trim(substr(v_line, 14, 21)), '?'), 'YYYY Mon DD HH24MI:ss'),
-						trim(substr(v_line, 35, 21)),
-						trim(substr(v_line, 56, 31)),
-						trim(substr(v_line, 87, 26)),
-						trim(substr(v_line, 113, 9)),
-						trim(substr(v_line, 122, 23)),
-						trim(substr(v_line, 145, 16)),
-						trim(substr(v_line, 161, 33)),
-						trim(substr(v_line, 194, 5)),
-						trim(substr(v_line, 199))
-					);
-				exception when others then
-					raise_application_error(-20000, 'Error with this line: '||v_line||chr(10)||
-						sys.dbms_utility.format_error_stack||sys.dbms_utility.format_error_backtrace);
-				end;
-			end if;
-		end loop;
-
-		--Commit and compress data.
-		commit;
-		execute immediate 'alter table launch_staging move';
-	end load_launch_staging;
-
-	---------------------------------------
-	--Load satellite data.
-	procedure load_satellite_staging is
-		v_satcat clob;
-		v_last_position number := 0;
-		v_position number := 0;
-		v_line_number number := 0;
-		v_line varchar2(32767);
-		v_satcat_number varchar2(7);
-	begin
-		--Get file.
-		select contents into v_satcat from space_files where name = 'satcat';
-
-		--Loop through lines and process them.
-		loop
-			v_line_number := v_line_number + 1;
-			v_last_position := v_position;
-			v_position := dbms_lob.instr(lob_loc => v_satcat, pattern => chr(10), nth => v_line_number);
-			exit when v_position = 0 or v_line_number >= 5000;
-
-			v_line := dbms_lob.substr(lob_loc => v_satcat, amount => v_position - v_last_position - 1, offset => v_last_position + 1);
-
-			begin
-				v_satcat_number := trim(substr(v_line, 1, 7));
-
-				--Special cases for rows that are formatted incorrectly.
-				if v_satcat_number = 'S003066' then
-						insert into satellite_staging values (v_line_number, 'S003066','1967-123A','Pioneer 8','Pioneer C','NASA',date '1967-12-13','Deep Space',date '1968-01-16',date '1967-12-13','EEO',611979.10,484,-4788696,32.89);
-				else
-					insert into satellite_staging
-					values(
-						v_line_number,
-						v_satcat_number, --satcat
-						trim(substr(v_line, 9, 14)), --cospar
-						trim(substr(v_line, 24, 40)), --official_name
-						trim(substr(v_line, 65, 24)), --secondary_name
-						trim(substr(v_line, 90, 12)), --owner_operator
-						to_date(replace(trim(substr(v_line, 103, 11)), '?'), 'YYYY Mon DD'), --launch_date
-						trim(substr(v_line, 115, 16)), --current_status
-						--If only the year is given, use January 1 as the date.
-						--Ignore '-'.
-						case
-							when length(replace(trim(substr(v_line, 132, 12)), '?')) = 4 then
-								to_date(replace(trim(substr(v_line, 132, 12)), '?') || '0101', 'YYYYMMDD')
-							when length(replace(trim(substr(v_line, 132, 12)), '?')) = 8 then
-								to_date(replace(trim(substr(v_line, 132, 12)), '?') || '01', 'YYYY MonDD')
-							when replace(trim(substr(v_line, 132, 12)), '?') = '1970s' then
-								null
-							when replace(trim(substr(v_line, 132, 12)), '?') = '-' then
-								null
-							else
-								to_date(replace(trim(substr(v_line, 132, 12)), '?'), 'YYYY Mon DD')
-						end, --status_date
-						to_date(replace(trim(substr(v_line, 145, 11)), '?'), 'YYYY Mon DD'), --orbit_date
-						trim(substr(v_line, 157, 6)), --orbit_class
-						to_number(trim(substr(v_line, 164, 11))), --orbit_period
-						to_number(trim(substr(v_line, 175, 6))), --perigee
-						to_number(trim(substr(v_line, 184, 7))), --apogee
-						to_number(trim(substr(v_line, 193, 6))) -- inclination
-					);
-				end if;
-			exception when others then
-				raise_application_error(-20000, 'Error with this satellite line: '||v_line||chr(10)||
-					sys.dbms_utility.format_error_stack||sys.dbms_utility.format_error_backtrace);
-			end;
-
-		end loop;
-
-		--Commit and compress data.
-		commit;
-		execute immediate 'alter table satellite_staging move';
-	end load_satellite_staging;
-
-
-begin
-	--TEMP
-	--Takes about 2 minutes to run:
-	--load_launch_staging;
-	--Takes about 10 minutes to run:
-	load_satellite_staging;
-
-	null;
-end;
+	type oracle_loader
+	default directory sdb_sdb
+	access parameters
+	(
+		records delimited by x'0A' characterset 'UTF8'
+		readsize 1048576
+		skip 47
+		fields ldrtrim
+		missing field values are null
+		reject rows with all null fields
+		(
+			Stage_Name (1:21)  char(21),
+			Stage_Family (22:42)  char(21),
+			Stage_Manufacturer (43:63)  char(21),
+			Stage_Alt_Name (64:84)  char(21),
+			Length (85:90)  char(6),
+			Diameter (91:96)  char(6),
+			Launch_Mass (97:104)  char(8),
+			Dry_Mass (105:114)  char(10),
+			Thrust (115:123)  char(9),
+			Duration (124:130)  char(7),
+			Engine (131:149)  char(19),
+			NEng (150:152)  char(3),
+			Class (153:153)  char(1)
+		)
+	)
+	location ('Stages')
+)
+reject limit unlimited
 /
 
 
---TEST
-select * from satellite_staging order by line_Number;
-delete from satellite_staging;
-commit;
+select * from stages_staging;
+
+
+select * from launch_all_staging;
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
