@@ -146,25 +146,9 @@ end get_external_table_ddl;
 
 
 
-
-
 --------------------------------------------------------------------------------
 --#3. Create external tables.
 --------------------------------------------------------------------------------
-
-/*
-x A. organization
-x B. family
-x C. vehicle
-x D. engine
-x E. stage
-x F. vehicle_stage
-x G. reference
-x H. site
-x I. platform
- J. launch
-*/
-
 
 select get_external_table_ddl('organization_staging', 'sdb_sdb', 'Orgs') from dual;
 select get_external_table_ddl('family_staging', 'sdb_sdb', 'Family') from dual;
@@ -176,9 +160,6 @@ select get_external_table_ddl('reference_staging', 'sdb_sdb', 'Refs') from dual;
 select get_external_table_ddl('site_staging', 'sdb_sdb', 'Sites') from dual;
 select get_external_table_ddl('platform_staging', 'sdb_sdb', 'Platforms') from dual;
 select get_external_table_ddl('launch_staging', 'sdb', 'lvtemplate') from dual;
-
-
---select get_external_table_ddl('launch_staging', 'sdb', 'all') from dual;
 
 /*
 Directions for manually checking results:
@@ -274,7 +255,6 @@ organization external
 reject limit unlimited
 /
 
-
 create table vehicle_staging
 (
 	LV_Name  varchar2(33),
@@ -332,7 +312,7 @@ organization external
 reject limit unlimited
 /
 
---WARNING: Column manually renamed
+--WARNING: Column "Date" manually renamed to "first_launch_date" to avoid Oracle keyword.
 create table engine_staging
 (
 	Engine_Name varchar2(21),
@@ -572,7 +552,6 @@ organization external
 reject limit unlimited
 /
 
-
 create table platform_staging
 (
 	Code   varchar2(11),
@@ -628,12 +607,7 @@ organization external
 reject limit unlimited
 /
 
-
-
-
---drop table launch_staging;
-
---WARNING: Had to change the filename to "all", and change "group" to "payload_group", change skip to 0.
+--WARNING: Had to change the filename to "all", and change "group" to "payload_group", change skip to 0, and had to add FlightCode.
 --TODO: There are some problems with the fields at the end.
 create table launch_staging
 (
@@ -645,6 +619,7 @@ create table launch_staging
 	Flight_ID varchar2(21),
 	Flight   varchar2(25),
 	Mission  varchar2(25),
+	FlightCode varchar2(25),
 	Platform varchar2(10),
 	Launch_Site varchar2(9),
 	Launch_Pad varchar2(17),
@@ -682,21 +657,22 @@ organization external
 			Flight_ID (80:100)  char(21),
 			Flight   (101:125)  char(25),
 			Mission  (126:150)  char(25),
-			Platform (151:160)  char(10),
-			Launch_Site (161:169)  char(9),
-			Launch_Pad (170:186)  char(17),
-			Apogee   (187:193)  char(7),
-			Apoflag  (194:195)  char(2),
-			Range    (196:200)  char(5),
-			RangeFlag (201:202)  char(2),
-			Dest     (203:215)  char(13),
-			Agency   (216:228)  char(13),
-			Launch_Code (229:233)  char(5),
-			Payload_Group    (234:258)  char(25),
-			Category (259:283)  char(25),
-			LTCite   (284:304)  char(21),
-			Cite     (305:325)  char(21),
-			Notes    (326:357)  char(32)
+			FlightCode (151:175) char(25),
+			Platform (176:185)  char(10),
+			Launch_Site (186:194)  char(9),
+			Launch_Pad (195:211)  char(17),
+			Apogee   (212:218)  char(7),
+			Apoflag  (219:220)  char(2),
+			Range    (221:225)  char(5),
+			RangeFlag (226:227)  char(2),
+			Dest     (228:240)  char(13),
+			Agency   (241:253)  char(13),
+			Launch_Code (254:258)  char(5),
+			Payload_Group    (259:283)  char(25),
+			Category (284:308)  char(25),
+			LTCite   (309:329)  char(21),
+			Cite     (330:350)  char(21),
+			Notes    (351:382)  char(32)
 		)
 	)
 	location ('all')
@@ -704,4 +680,11 @@ organization external
 reject limit unlimited
 /
 
+
+
+--------------------------------------------------------------------------------
+--#4. Create presentation tables.
+--------------------------------------------------------------------------------
+
+--TODO
 select * from launch_staging;
