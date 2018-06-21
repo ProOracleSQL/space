@@ -15,6 +15,16 @@ TODO:
 
 
 --------------------------------------------------------------------------------
+--#0: Manually download data.
+--------------------------------------------------------------------------------
+
+--#0A: Download and unzip this file in C:\space: http://www.planet4589.org/space/lvdb/sdb.tar.gz
+
+--#0B: Download this file and put it in C:\space\sdb.tar: http://planet4589.org/space/log/satcat.txt
+
+
+
+--------------------------------------------------------------------------------
 --#1: Create directories.  You may also need to grant permission on the folder.
 --  This is usually the ora_dba group on windows, or the oracle users on Unix.
 --------------------------------------------------------------------------------
@@ -160,6 +170,7 @@ select get_external_table_ddl('reference_staging', 'sdb_sdb', 'Refs') from dual;
 select get_external_table_ddl('site_staging', 'sdb_sdb', 'Sites') from dual;
 select get_external_table_ddl('platform_staging', 'sdb_sdb', 'Platforms') from dual;
 select get_external_table_ddl('launch_staging', 'sdb', 'lvtemplate') from dual;
+--(satellite_staging does not have a template.)
 
 /*
 Directions for manually checking results:
@@ -680,11 +691,81 @@ organization external
 reject limit unlimited
 /
 
+--WARNING: This file is completely manual.  The "numbers" column will need to be split.
+create table satellite_staging
+(
+	satcat         varchar(8),
+	cospar         varchar(15),
+	official_name  varchar(41),
+	secondary_name varchar(25),
+	owner_operator varchar(13),
+	launch_date    varchar(12),
+	current_status varchar(17),
+	status_date    varchar(13),
+	orbit_date     varchar(12),
+	orbit_class    varchar(8),
+	--Poorly formatted values for orbit_period, perigee, apogee, and inclination.
+	numbers        varchar(100)
+)
+organization external
+(
+	type oracle_loader
+	default directory sdb
+	access parameters
+	(
+		records delimited by x'0A' characterset 'UTF8'
+		readsize 1048576
+		skip 0
+		fields ldrtrim
+		missing field values are null
+		reject rows with all null fields
+		(
+			satcat         (1:8) char(8),
+			cospar         (9:23) char(15),
+			official_name  (24:63) char(41),
+			secondary_name (65:94) char(25),
+			owner_operator (90:106) char(13),
+			launch_date    (103:118) char(12),
+			current_status (115:134) char(17),
+			status_date    (132:147) char(13),
+			orbit_date     (145:159) char(12),
+			orbit_class    (157:167) char(8),
+			numbers        (165:267) char(100)
+		)
+	)
+	location ('satcat.txt')
+)
+reject limit unlimited
+/
+comment on table satellite_staging is 'See this website for a description of the data: http://planet4589.org/space/log/satcat.html';
+
 
 
 --------------------------------------------------------------------------------
 --#4. Create presentation tables.
 --------------------------------------------------------------------------------
 
---TODO
+--Launch_tag: 1960-A227
 select * from launch_staging;
+
+--1967-063F
+select *
+from satellite_staging;
+
+--Only 1077 that don't match - Data that is very old or very new.
+--I may need to remove satellite data that is later than 2017 Sep 7.
+select *
+from satellite_staging
+where regexp_replace(trim(cospar), '[A-Z]', null) not in (select trim(launch_tag) from launch_staging);
+
+
+1975-043B
+;
+
+select * from launch_staging where launch_tag like '2018-025%';
+select * from satellite_staging where cospar like '2018-025B%';
+
+select * from launch_staging where launch_date like '%2018%';
+
+select * from launch_staging where launch_date like '2018%'
+

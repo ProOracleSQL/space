@@ -167,6 +167,8 @@ comment on table satellite_staging is 'See this website for a description of the
 declare
 	---------------------------------------
 	--Load launch data.
+	--Removed - this is much cleaner in the launch files.
+	/*
 	procedure load_launch_staging is
 		v_launch_log clob;
 		v_last_position number := 0;
@@ -216,6 +218,7 @@ declare
 		commit;
 		execute immediate 'alter table launch_staging move';
 	end load_launch_staging;
+	*/
 
 	---------------------------------------
 	--Load satellite data.
@@ -235,15 +238,18 @@ declare
 			v_line_number := v_line_number + 1;
 			v_last_position := v_position;
 			v_position := dbms_lob.instr(lob_loc => v_satcat, pattern => chr(10), nth => v_line_number);
-			exit when v_position = 0; --TEST or v_line_number >= 5000;
+			exit when v_position = 0 or v_line_number >= 500;
 
 			v_line := dbms_lob.substr(lob_loc => v_satcat, amount => v_position - v_last_position - 1, offset => v_last_position + 1);
 
 			begin
 				v_satcat_number := trim(substr(v_line, 1, 7));
 
+				--Bad data if the "x"s are in the wrong place.
+				if substr(v_line, 182, 1) <> 'x' or substr(v_line, 191, 1) <> 'x' then
+					dbms_output.put_line('ERROR: ' || v_line);
 				--Special cases for rows that are formatted incorrectly.
-				if v_satcat_number = 'S003066' then
+				elsif v_satcat_number = 'S003066' then
 						insert into satellite_staging values (v_line_number, 'S003066','1967-123A','Pioneer 8','Pioneer C','NASA',date '1967-12-13','Deep Space',date '1968-01-16',date '1967-12-13','EEO',611979.10,484,-4788696,32.89);
 				else
 					insert into satellite_staging
@@ -313,6 +319,14 @@ select * from satellite_staging order by line_Number;
 delete from satellite_staging;
 commit;
 
+select * from space_files;
+
+select substr(line, 182, 1), substr(line, 191, 1)
+from
+(
+	select 'S000001 57 Alpha 1     8K71A M1-10                              8K71A M1-10 (M1-1PS)     RVSN         1957 Oct  4 Reentered        1957 Dec  1  1957 Oct  4 LEO/I       96.18    214 x    938 x  65.10' line
+	from dual
+);
 
 
 ORA-20000: Error with this satellite line: S005377 1971-063D      Apollo 15 Subsatellite                   Apollo 15 Subsatellite   NASA         1971 Jul 26 Deep Space Attac 1971 Jul 27  1971 Aug  4 EEO      -        -      x -      x -       -
