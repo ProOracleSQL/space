@@ -11,11 +11,20 @@ TODO:
 4. Create final presentation tables.
 5. Create exports of presentation tables into easy-to-load scripts.
 6. Host those exports on different sites.
+
+
+Notes of JSR issues:
+--Orgs note: LTV Electronic Systems Division is out of alignment and has a weird "b" in one column.
+--Orgs note: Thales Alenia Space/Cannes (TAS-F) is the only one in ORG_CLASS "F".  Should it be "B" for business instead?
+--orgs.html: Should "(MET)" be listed as "meteorological"
+--orgs.html: It might help to explain some letters, like CC (control center?), and what PL stands for.
+
+
 */
 
 
 --------------------------------------------------------------------------------
---#0: Manually download data.
+--#1: Manually download data.
 --------------------------------------------------------------------------------
 
 --#0A: Download and unzip this file in C:\space: http://www.planet4589.org/space/lvdb/sdb.tar.gz
@@ -25,7 +34,7 @@ TODO:
 
 
 --------------------------------------------------------------------------------
---#1: Create directories.  You may also need to grant permission on the folder.
+--#2: Create directories.  You may also need to grant permission on the folder.
 --  This is usually the ora_dba group on windows, or the oracle users on Unix.
 --------------------------------------------------------------------------------
 
@@ -35,7 +44,7 @@ create or replace directory sdb_sdb as 'C:\space\sdb.tar\sdb\';
 
 
 --------------------------------------------------------------------------------
---#2. Auto-manually generate external files to load the file.
+--#3. Auto-manually generate external files to load the file.
 -- This is a semi-automated process because the files are not 100% formatted correctly.
 --------------------------------------------------------------------------------
 create or replace function get_external_table_ddl(
@@ -157,7 +166,7 @@ end get_external_table_ddl;
 
 
 --------------------------------------------------------------------------------
---#3. Create external tables.
+--#4. Create external tables.
 --------------------------------------------------------------------------------
 
 select get_external_table_ddl('organization_staging', 'sdb_sdb', 'Orgs') from dual;
@@ -742,8 +751,280 @@ comment on table satellite_staging is 'See this website for a description of the
 
 
 --------------------------------------------------------------------------------
---#4. Create presentation tables.
+--#5. Create helper functions for conversions.
 --------------------------------------------------------------------------------
+
+create or replace function jsr_to_date(p_date_string in varchar2) return date is
+/*
+	Purpose: Safely convert the JSR dates to a real date.
+*/
+	v_date_string varchar2(32767);
+begin
+	--Remove whitespace as beginning and end, dashes (which are used in place of null), question marks, "*"s, "s"s.
+	v_date_string := p_date_string;
+	v_date_string := replace(v_date_string, '-');
+	v_date_string := replace(v_date_string, '?');
+	v_date_string := replace(v_date_string, '*');
+	v_date_string := trim(v_date_string);
+	v_date_string := trim('s' from v_date_string);
+
+	--Return NULL if NULL.
+	if v_date_string is null then
+		return null;
+	elsif length(v_date_string) in (3,4) then
+		return to_date(v_date_string || ' 01 01', 'YYYY MM DD');
+	elsif length(v_date_string) = 8 then
+		return to_date(v_date_string || '01', 'YYYY Mon DD');
+	elsif length(v_date_string) in (10, 11) then
+		--Change 00 to 01.
+		if substr(v_date_string, 10) in ('0', '00') then
+			return to_date(substr(v_date_string, 1, 9) || '01', 'YYYY Mon DD');
+		else
+			return to_date(v_date_string, 'YYYY Mon DD');
+		end if;
+	--TODO: Time
+	else
+		raise_application_error(-20000, 'Unexpected format for this date string: ' || p_date_string);
+	end if;
+
+exception when others then
+	raise_application_error(-20000, 'Unexpected format for this date string: ' || p_date_string);
+end jsr_to_date;
+/
+
+
+create or replace function get_nt_from_list
+(
+	p_list in varchar2,
+	p_delimiter in varchar2
+) return sys.odcivarchar2list is
+/*
+	Purpose: Split a list of strings into a nested table of string.
+*/
+	v_index number := 0;
+	v_item varchar2(32767);
+	v_results sys.odcivarchar2list := sys.odcivarchar2list();
+begin
+	--Split.
+	loop
+		v_index := v_index + 1;
+		v_item := regexp_substr(p_list, '[^' || p_delimiter || ']+', 1, v_index);
+		exit when v_item is null;
+		v_results.extend;
+		v_results(v_results.count) := v_item;		
+	end loop;
+
+	return v_results;
+end;
+/
+
+
+
+--------------------------------------------------------------------------------
+--#6. Create staging views that will do much of the trimming, converting, and decoding.
+--------------------------------------------------------------------------------
+
+--Organization.
+--Decode codes and re-arrange columns.
+create or replace force view organization_staging_view as
+select
+	org_code,
+	org_name,
+	org_type,
+	case
+		when org_class is null then null
+		when org_class = 'A' then 'academic/non-profit'
+		when org_class = 'B' then 'business'
+		when org_class = 'C' then 'civilian'
+		when org_class = 'D' then 'defense'
+		when org_class = 'E' then 'engine/motor manufacturer'
+		when org_class = 'F' then 'business' --This seems like a mistake.
+		when org_class = 'O' then 'generic organization'
+		else 'ERROR - Unexpected value "'||org_class||'"'
+	end org_class,
+	parent_org_code,
+	org_state_code,
+	org_location,
+	org_start_date,
+	org_stop_date,
+	org_utf8_name
+from
+(
+	--Convert dates, numbers, and nulls.
+	select
+		org_code,
+		decode(parent_org_code, '-', null, parent_org_code) parent_org_code,
+		org_state_code,
+		decode(org_type, '-', null, org_type) org_type,
+		org_class,
+		jsr_to_date(org_start_date) org_start_date,
+		jsr_to_date(org_stop_date) org_stop_date,
+		org_location,
+		org_name,
+		org_utf8_name
+	from
+	(
+		--Trim and project relevant columns.
+		select
+			trim(code) org_code,
+			trim(parent) parent_org_code,
+			trim(statecode) org_state_code,
+			trim(type) org_type,
+			trim(class) org_class,
+			trim(tstart) org_start_date,
+			trim(tstop) org_stop_date,
+			trim(location) org_location,
+			coalesce(replace(trim(shortename),'-'), replace(trim(ename),'-'), replace(trim(name),'-')) org_name,
+			trim(uname) org_utf8_name
+		from organization_staging
+		order by code
+	) trim_and_project
+) convert;
+
+--Family.
+--Decode.  TODO: There are some problems with this data.
+select
+	family,
+	case
+		when class = 'A' then 'astronaut suborbital'
+		when class = 'M' then 'missile'
+		when class = 'O' then 'orbital family'
+		when class = 'R' then 'sounding rocket'
+		when class = 'S' then 'intermediate stage 1'
+		when class = 'T' then 'test rocket'
+		when class = 'U' then 'orbital'
+		when class = 'V' then 'missile test rocket'
+		when class = 'W' then 'weather (small)'
+		when class = 'X' then 'deleted'
+		else 'ERROR - Unexpected value "'||class||'"'
+	end class
+from
+(
+	--Trim and project relevant columns.
+	select
+		trim(family) family,
+		trim(class) class
+	from family_staging
+) trim_and_project;
+
+
+
+TDISP6  = 'A1       '                      / R =  U =  upper O = 
+TPOS6   =                     22          /  S =  M = 
+
+--TODO:
+
+
+
+
+--------------------------------------------------------------------------------
+--#7. Validate staging data and views.
+--------------------------------------------------------------------------------
+
+--The validation statements are setup so that returning zero rows means success.
+begin
+	--TODO:
+	null;
+end;
+/
+
+
+
+--------------------------------------------------------------------------------
+--#8. Create presentation tables.
+--------------------------------------------------------------------------------
+
+drop table organization_org_type;
+
+create table organization_org_type compress as
+select org_code, org_types.org_type
+from organization_staging_view
+join
+(
+	--Mapping of ORG_TYPE list to readable org_type values.
+	select
+		org_type org_type_list,
+		case
+			when column_value = null then null
+			when column_value = 'AP' then 'astronomical polity'
+			when column_value = 'CC' then 'control center'
+			when column_value = 'CY' then 'country'
+			when column_value = 'E' then 'engine/motor manufacturer'
+			when column_value = 'IGO' then 'intergovernmental organization'
+			when column_value = 'LA' then 'launch agency'
+			when column_value = 'LS' then 'launch site'
+			when column_value = 'LV' then 'launch vehicle manufacturer'
+			when column_value = 'MET' then 'meteorological'
+			when column_value = 'O' then 'organization'
+			when column_value = 'PL' then 'satellite manufacturer'
+			when column_value = 'S' then 'school'
+			else 'ERROR - Unexpected value "'||column_value||'"'
+		end org_type
+	from
+	(
+		--Mapping of org_type list to individual values.
+		select org_type, column_value
+		from
+		(
+			--Get distinct org_types (we don't want to cross-join them all).
+			select distinct org_type
+			from organization_staging_view
+		), get_nt_from_list(org_type, '/')
+	)
+	order by 1,2
+) org_types
+	on organization_staging_view.org_type = org_types.org_type_list;
+
+create unique index organization_org_type_idx on organization_org_type(org_code, org_type) compress 1;
+
+
+create table organization compress as
+select org_code, org_name, org_class, parent_org_code, org_state_code, org_location, org_start_date, org_stop_date, org_utf8_name
+from organization_staging_view;
+
+alter table organization add constraint organization_pk primary key (org_code);
+
+
+
+
+
+
+
+organization_staging
+family_staging
+vehicle_staging
+engine_staging
+stage_staging
+vehicle_stage_staging
+reference_staging
+site_staging
+platform_staging
+launch_staging
+satellite_staging;
+
+
+
+
+
+
+
+
+
+
+
+
+--70536
+select count(*)
+from launch_staging
+left join organization_staging
+	on trim(agency) = trim(organization_staging.code);
+
+
+
+
+
+--Remove satellite data that is more recent than launch data.
+--delete from satellite_staging where launch_date like '2018%';
 
 --Launch_tag: 1960-A227
 select * from launch_staging;
@@ -767,5 +1048,11 @@ select * from satellite_staging where cospar like '2018-025B%';
 
 select * from launch_staging where launch_date like '%2018%';
 
-select * from launch_staging where launch_date like '2018%'
+select * from launch_staging where launch_date like '2018%';
+
+select current_status, count(*)
+from satellite_staging
+group by current_status
+order by count(*) desc;
+
 
