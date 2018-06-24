@@ -14,10 +14,15 @@ TODO:
 
 
 Notes of JSR issues:
---Orgs note: LTV Electronic Systems Division is out of alignment and has a weird "b" in one column.
---Orgs note: Thales Alenia Space/Cannes (TAS-F) is the only one in ORG_CLASS "F".  Should it be "B" for business instead?
+--Orgs: LTV Electronic Systems Division is out of alignment and has a weird "b" in one column.
+--Orgs: Thales Alenia Space/Cannes (TAS-F) is the only one in ORG_CLASS "F".  Should it be "B" for business instead?
 --orgs.html: Should "(MET)" be listed as "meteorological"
 --orgs.html: It might help to explain some letters, like CC (control center?), and what PL stands for.
+--Family: it doesn't list all the family letters.  Are B, C, and L all "missile"s?
+--LV: The ICBM-T2 manufacturer is listed as "Minuteman".  Should it be "OATK" (Orbital ATK) instead?
+--LV: The ICBM-T2 manufacturer is listed as "Minuteman".  Should it be "OATK" (Orbital ATK) instead?
+--LV: Should BLDT launch vehicle's manufacturer be LARCN instead of BLDT?  BLDT is not in Org.  Based on: https://ntrs.nasa.gov/archive/nasa/casi.ntrs.nasa.gov/19740023231.pdf
+--Orgs (and LV): Is there a missing Org for CMIK?  It's listed in LV but not ORG. http://www.astronautix.com/c/cmik.html
 
 
 */
@@ -171,10 +176,10 @@ end get_external_table_ddl;
 
 select get_external_table_ddl('organization_staging', 'sdb_sdb', 'Orgs') from dual;
 select get_external_table_ddl('family_staging', 'sdb_sdb', 'Family') from dual;
-select get_external_table_ddl('vehicle_staging', 'sdb_sdb', 'LV') from dual;
+select get_external_table_ddl('launch_vehicle_staging', 'sdb_sdb', 'LV') from dual;
 select get_external_table_ddl('engine_staging', 'sdb_sdb', 'Engines') from dual;
 select get_external_table_ddl('stage_staging', 'sdb_sdb', 'stages') from dual;
-select get_external_table_ddl('vehicle_stage_staging', 'sdb_sdb', 'LV_Stages') from dual;
+select get_external_table_ddl('launch_vehicle_stage_staging', 'sdb_sdb', 'LV_Stages') from dual;
 select get_external_table_ddl('reference_staging', 'sdb_sdb', 'Refs') from dual;
 select get_external_table_ddl('site_staging', 'sdb_sdb', 'Sites') from dual;
 select get_external_table_ddl('platform_staging', 'sdb_sdb', 'Platforms') from dual;
@@ -275,7 +280,7 @@ organization external
 reject limit unlimited
 /
 
-create table vehicle_staging
+create table launch_vehicle_staging
 (
 	LV_Name  varchar2(33),
 	LV_Family varchar2(21),
@@ -385,7 +390,7 @@ reject limit unlimited
 /
 
 --WARNING: Some comments on the right-hand side are dropped, but I don't think that matters.
-create table vehicle_stage_staging
+create table launch_vehicle_stage_staging
 (
 	LV_Mnemonic varchar2(34),
 	LV_Variant varchar2(11),
@@ -825,8 +830,8 @@ end;
 --------------------------------------------------------------------------------
 
 --Organization.
---Decode codes and re-arrange columns.
 create or replace force view organization_staging_view as
+--Decode codes and re-arrange columns.
 select
 	org_code,
 	org_name,
@@ -881,38 +886,145 @@ from
 	) trim_and_project
 ) convert;
 
+
 --Family.
---Decode.  TODO: There are some problems with this data.
-select
-	family,
-	case
-		when class = 'A' then 'astronaut suborbital'
-		when class = 'M' then 'missile'
-		when class = 'O' then 'orbital family'
-		when class = 'R' then 'sounding rocket'
-		when class = 'S' then 'intermediate stage 1'
-		when class = 'T' then 'test rocket'
-		when class = 'U' then 'orbital'
-		when class = 'V' then 'missile test rocket'
-		when class = 'W' then 'weather (small)'
-		when class = 'X' then 'deleted'
-		else 'ERROR - Unexpected value "'||class||'"'
-	end class
+create or replace view launch_vehicle_family_stagng_v as
+--Remove a few extra rows.
+select lv_family_code, lv_family_class
 from
 (
-	--Trim and project relevant columns.
+	--Decode.
 	select
-		trim(family) family,
-		trim(class) class
-	from family_staging
-) trim_and_project;
+		family lv_family_code,
+		case
+			--Regular conversions:
+			when class = 'A' then 'astronaut suborbital'
+			--I'm not sure about B, C, and L.
+			when class in ('B', 'C', 'L', 'M') then 'missile'
+			when class = 'O' then 'orbital family'
+			when class = 'R' then 'sounding rocket'
+			when class = 'S' then 'intermediate stage 1'
+			when class = 'T' then 'test rocket'
+			when class = 'U' then 'orbital'
+			when class = 'V' then 'missile test rocket'
+			when class = 'W' then 'weather (small)'
+			when class = 'X' then 'deleted'
+			else 'ERROR - Unexpected value "'||class||'"'
+		end lv_family_class
+	from
+	(
+		--Trim and project relevant columns.
+		select
+			trim(family) family,
+			trim(class) class
+		from family_staging
+	) trim_and_project
+) decoded
+where not
+(
+	--A few changes to make the class a 1-to-1 mapping.
+	--I'm not 100% sure about this, but the idea is that if a rocket becomes
+	--part of a higher class, then it always belongs there.
+	--
+	--BB5 is "sounding rocket", not "intermediate stage 1"
+	--Star48 is "orbital", not "test rocket"
+	--Zefiro is "intermediate stage 1", not "test rocket"
+	--STS is "orbital family" not "orbital"  (what is the difference?)
+	(lv_family_code = 'BB5' and lv_family_class = 'intermediate stage 1') or
+	(lv_family_code = 'Star48' and lv_family_class = 'test rocket') or
+	(lv_family_code = 'Zefiro' and lv_family_class = 'test rocket') or
+	(lv_family_code = 'STS' and lv_family_class = 'orbital')
+);
 
 
+--Launch Vehicle Staging
+create or replace force view launch_vehicle_staging_view as
+--Decode codes and re-arrange columns.
+select
+	lv_name,
+	lv_variant,
+	case
+		when lv_class is null then null
+		when lv_class = 'A' then 'endoatmospheric rocket'
+		when lv_class = 'Q' then 'endoatmospheric research test vehicle'
+		when lv_class = 'T' then 'endoatmoshpheric test/research'
+		when lv_class = 'W' then 'endoatmospheric weather rocket <80 km'
+		when lv_class = 'Y' then 'exoatmospheric weather rocket'
 
-TDISP6  = 'A1       '                      / R =  U =  upper O = 
-TPOS6   =                     22          /  S =  M = 
+		when lv_class = 'B' then 'tactical ballistic missile'
+		when lv_class = 'C' then 'cruise missile'
+		when lv_class = 'M' then 'missile'
 
---TODO:
+		when lv_class = 'D' then 'deep space launch vehicle'
+		when lv_class = 'O' then 'orbital launch vehicle'
+
+		when lv_class = 'R' then 'research rocket'
+		when lv_class = 'V' then 'rocket test vehicle'
+		when lv_class = 'X' then 'big test rocket'
+
+		else 'ERROR - Unexpected value "'||lv_class||'"'
+	end lv_class,
+	lv_family_code,
+	lv_manufacturer_org_codes,
+	lv_alias,
+	min_stage,
+	max_stage,
+	length,
+	diameter,
+	launch_mass,
+	leo_capacity,
+	gto_capacity,
+	take_off_thrust,
+	apogee,
+	range
+from
+(
+	--Convert dates, numbers, and nulls.
+	select
+		lv_name,
+		lv_family_code,
+		replace(nullif(lv_manufacturer_org_codes, '-'), '?') lv_manufacturer_org_codes,
+		nullif(lv_variant, '-') lv_variant,
+		lv_alias,
+		to_number(min_stage) min_stage,
+		to_number(max_stage) max_stage,
+		nullif(replace(length, '?'), '-') length,
+		nullif(replace(diameter, '?'), '-') diameter,
+		nullif(replace(launch_mass, '?'), '-') launch_mass,
+		nullif(replace(leo_capacity, '?'), '-') leo_capacity,
+		nullif(replace(gto_capacity, '?'), '-') gto_capacity,
+		nullif(replace(take_off_thrust, '?'), '-') take_off_thrust,
+		lv_class,
+		nullif(replace(apogee, '?'), '-') apogee,
+		nullif(replace(range, '?'), '-') range
+	from
+	(
+		--Trim and project relevant columns.
+		select
+			trim(lv_name) lv_name,
+			trim(lv_family) lv_family_code,
+			--LV_SFAMILY is not used for now.
+			trim(lv_manufacturer) lv_manufacturer_org_codes,
+			trim(lv_variant) lv_variant,
+			trim(lv_alias) lv_alias,
+			trim(lv_min_stage) min_stage,
+			trim(lv_max_stage) max_stage,
+			trim(length) length,
+			trim(diameter) diameter,
+			trim(launch_mass) launch_mass,
+			trim(leo_capacity) leo_capacity,
+			trim(gto_capacity) gto_capacity,
+			trim(to_thrust) take_off_thrust,
+			trim(class) lv_class,
+			trim(apogee) apogee,
+			trim(range) range
+		from launch_vehicle_staging
+		order by lv_name, lv_variant
+	) trim_and_project
+) convert;
+
+
+--TODO
 
 
 
@@ -934,8 +1046,21 @@ end;
 --#8. Create presentation tables.
 --------------------------------------------------------------------------------
 
-drop table organization_org_type;
 
+--ORGANIZATION
+create table organization compress as
+select org_code, org_name, org_class, parent_org_code, org_state_code, org_location, org_start_date, org_stop_date, org_utf8_name
+from organization_staging_view
+order by 1,2;
+
+insert into organization(org_code, org_name, org_class, parent_org_code, org_state_code, org_location, org_start_date, org_stop_date, org_utf8_name)
+values ('CMIK', 'Choson MIK', 'defense', 'KPA', 'KP', 'Pyongyang', null, null, 'Choson MIK');
+commit;
+
+alter table organization add constraint organization_pk primary key (org_code);
+
+
+--ORGANIZATION_ORG_TYPE (bridge table)
 create table organization_org_type compress as
 select org_code, org_types.org_type
 from organization_staging_view
@@ -973,43 +1098,86 @@ join
 	)
 	order by 1,2
 ) org_types
-	on organization_staging_view.org_type = org_types.org_type_list;
+	on organization_staging_view.org_type = org_types.org_type_list
+order by 1,2;
 
 create unique index organization_org_type_idx on organization_org_type(org_code, org_type) compress 1;
+alter table organization_org_type add constraint organization_org_fk foreign key (org_code) references organization(org_code);
 
 
-create table organization compress as
-select org_code, org_name, org_class, parent_org_code, org_state_code, org_location, org_start_date, org_stop_date, org_utf8_name
-from organization_staging_view;
+--LAUNCH_VEHICLE_FAMILY
+create table launch_vehicle_family compress as
+select lv_family_code, lv_family_class
+from launch_vehicle_family_stagng_v
+order by 1, 2;
 
-alter table organization add constraint organization_pk primary key (org_code);
+alter table launch_vehicle_family add constraint launch_vehicle_family_pk primary key (lv_family_code);
 
 
+--LAUNCH_VEHICLE
+create table launch_vehicle as
+select
+	row_number() over (order by lv_name, lv_variant) lv_id,
+	lv_name, lv_variant, lv_class, lv_family_code, lv_alias, min_stage, max_stage,
+	length, diameter, launch_mass, leo_capacity, gto_capacity, take_off_thrust,
+	apogee, range
+from launch_vehicle_staging_view
+order by 1,2;
 
+alter table launch_vehicle add constraint launch_vehicle_pk primary key (lv_id);
+alter table launch_vehicle add constraint launch_vehicle_uj unique (lv_name, lv_variant);
+alter table launch_vehicle add constraint launch_vehicle_family_fk foreign key (lv_family_code) references launch_vehicle_family(lv_family_code);
+
+
+--LAUNCH_VEHICLE_MANUFACTURER (bridge_table)
+create table launch_vehicle_manufacturer as
+select
+	lv_id,
+	case
+		--A few weird cases:
+		--#1: The ICBM-T2 manufacturer is listed as "Minuteman".
+		--Should it be "OATK" (Orbital ATK) instead?
+		--#2: Should BLDT launch vehicle's manufacturer be LARCN instead of BLDT?  BLDT is not in Org.
+		--Based on: https://ntrs.nasa.gov/archive/nasa/casi.ntrs.nasa.gov/19740023231.pdf
+		when org_codes.column_value = 'Minuteman' then 'OATK'
+		when org_codes.column_value = 'BLDT' then 'LARCN'
+		else org_codes.column_value
+	end lv_manufacturer_org_code
+from launch_vehicle
+join launch_vehicle_staging_view
+	on launch_vehicle.lv_name = launch_vehicle_staging_view.lv_name
+	and nvl(launch_vehicle.lv_variant, 'none') = nvl(launch_vehicle_staging_view.lv_variant, 'none')
+join
+(
+	--Mapping of org code lists to individual values.
+	select lv_manufacturer_org_codes, column_value
+	from
+	(
+		--Get distinct org_types (we don't want to cross-join them all).
+		select distinct lv_manufacturer_org_codes
+		from launch_vehicle_staging_view
+	), get_nt_from_list(lv_manufacturer_org_codes, '/')
+	order by 1,2
+) org_codes
+	on launch_vehicle_staging_view.lv_manufacturer_org_codes = org_codes.lv_manufacturer_org_codes
+order by 1,2;
+
+alter table launch_vehicle_manufacturer add constraint launch_vehicle_man_org_fk  foreign key (lv_manufacturer_org_code) references organization(org_code);
 
 
 
 
 organization_staging
 family_staging
-vehicle_staging
+launch_vehicle_staging
 engine_staging
 stage_staging
-vehicle_stage_staging
+launch_vehicle_stage_staging
 reference_staging
 site_staging
 platform_staging
 launch_staging
 satellite_staging;
-
-
-
-
-
-
-
-
-
 
 
 
