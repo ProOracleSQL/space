@@ -29,6 +29,10 @@ Engines: "9KS1660" has a comma instead of a period for the thrust.
 Engines: There are a few double questions marks.
 Engine: Should ROCKL (not in Orgs) be RLABN (Rocket Lab in New Zealand)?
 Engine: Should ANSAR (not in Orgs) be ANSAL (Ansar Allah (Houthi) Revolutionary Committee Forces)?
+Stages: "Corporal Type 1" has a comman instead of a period for the length.
+Stages: Should "LS-A Booster" be "LS-A booster" to match the Engines file?  (That will make a difference to case-sensitive databases.)
+Stages: Should ANSAR (not in Orgs) be ANSAL (Ansar Allah (Houthi) Revolutionary Committee Forces)?
+
 
 */
 
@@ -1102,6 +1106,103 @@ from
 ) convert;
 
 
+--Stage
+create or replace view stage_staging_view as
+--Decode some mistakes and re-arrange columns.
+select
+	stage_name,
+	stage_family,
+	stage_alt_name,
+	length,
+	diameter,
+	launch_mass,
+	dry_mass,
+	thrust,
+	duration,
+	case
+		--Looks like a typo?
+		when engine_name = 'AJ10-11B' then 'AJ10-118'
+		--Case sensitivity issue?
+		when engine_name = 'LS-A Booster' then 'LS-A booster'
+		else engine_name
+	end engine_name,
+	engine_count,
+	--Looks like there are some typos?
+	case
+		when stage_name = 'Badr-1' and stage_manufacturer_code_list = 'ANSAR' then 'ANSAL'
+		when stage_name = 'Grad' and stage_manufacturer_code_list = 'ANSAR' then 'ANSAL'
+		else stage_manufacturer_code_list
+	end stage_manufacturer_code_list
+from
+(
+	--Convert dates, numbers, and nulls.
+	select
+		nullif(stage_name, '-') stage_name,
+		nullif(stage_family, 'Unknown') stage_family,
+		replace(nullif(stage_manufacturer_code_list, '-'), '?') stage_manufacturer_code_list,
+		nullif(stage_alt_name, '-') stage_alt_name,
+		to_number(replace(replace(nullif(length, '-'), '?'), ',', '.')) length,
+		to_number(replace(nullif(diameter, '-'), '?')) diameter,
+		to_number(replace(nullif(launch_mass, '-'), '?')) launch_mass,
+		to_number(replace(nullif(dry_mass, '-'), '?')) dry_mass,
+		to_number(trim('s' from replace(nullif(thrust, '-'), '?'))) thrust,
+		to_number(replace(nullif(duration, '-'), '?')) duration,
+		nullif(engine, '-') engine_name,
+		to_number(replace(nullif(engine_count, '-'), '?')) engine_count
+	from
+	(
+		--Trim and project relevant columns.
+		select
+			trim(stage_name) stage_name,
+			trim(stage_family) stage_family,
+			trim(stage_manufacturer) stage_manufacturer_code_list,
+			trim(stage_alt_name) stage_alt_name,
+			trim(length) length,
+			trim(diameter) diameter,
+			trim(launch_mass) launch_mass,
+			trim(dry_mass) dry_mass,
+			trim(thrust) thrust,
+			trim(duration) duration,
+			trim(engine) engine,
+			trim(neng) engine_count
+		from stage_staging
+		order by stage_name
+	) trim_and_project
+) convert
+where
+	--These stages aren't needed.
+	stage_name is not null
+	and stage_name <> '?'
+	--These stages don't fully exist yet.
+	and stage_name not in ('GEM-63')
+	--These stages aren't used yet and don't match anything in Engines
+	and stage_name not in ('Sidewinder 1C', 'TU-903')
+order by stage_name;
+
+
+
+select stage_name, count(*) from stage_staging_view group by stage_name order by count(*) desc;
+
+select * from stage_staging_view
+where engine_name not in (select engine_name from engine);
+
+
+--Stages: Should "AJ10-11B" be "AJ10-118"?  I can't find "AJ10-11B" in Engines.
+--Stages: Should "GEM-63" be excluded, or also added to Engines?  Looks like it's not being used yet: http://www.northropgrumman.com/Capabilities/GEM/Pages/default.aspx 
+
+
+select * from stage_
+
+LS-A Booster  --spelled wrong
+Sidewinder 1C --not needed
+TU-903        --not needed
+;
+select * from launch_vehicle_stage_staging where trim(stage_name) in ('LS-A Booster', 'Sidewinder 1C', 'TU-903')  ;
+
+select * from engine where lower(engine_name) like '%gem%';
+
+
+
 select * from stage_staging;
 select * from launch_vehicle_stage_staging;
 select * from reference_staging;
@@ -1346,7 +1447,7 @@ alter table engine_propellent add constraint engine_propellent_pk primary key (e
 alter table engine_propellent add constraint engine_propellent_engine_fk foreign key (engine_id) references engine(engine_id);
 alter table engine_propellent add constraint engine_propellent_prop_fk foreign key (propellent_id) references propellent(propellent_id);
 
---ENGINE_MANUFACTURER
+--ENGINE_MANUFACTURER (bridge table)
 create table engine_manufacturer as
 select engine_id, column_value manufacturer_org_code
 from
@@ -1359,9 +1460,73 @@ from
 cross join get_nt_from_list(engine_manufacturer_code_list, '/')
 order by 1,2;
 
-alter table engine_manufacturer add constraint engine_manufacturer_id primary key (engine_id, manufacturer_org_code);
+alter table engine_manufacturer add constraint engine_manufacturer_pk primary key (engine_id, manufacturer_org_code);
 alter table engine_manufacturer add constraint engine_manufacturer_engine_fk foreign key (engine_id) references engine(engine_id);
 alter table engine_manufacturer add constraint engine_manufacturer_manuf_fk foreign key (manufacturer_org_code) references organization(org_code);
+
+
+--STAGE
+create table stage as
+select stage_name, stage_family, stage_alt_name, length, diameter, launch_mass, dry_mass,
+	stage_staging_view.thrust, stage_staging_view.duration, engine_id, engine_count
+from stage_staging_view
+left join engine
+	on stage_staging_view.engine_name = engine.engine_name
+--Manually adjust some joins, based on names.
+--When it's still ambiguous, choose the engine with either more complete numbers or higher numbers.
+--(On the assumption that the the engine actually used would have more information and higher values.)
+where not
+(
+	(stage_name = '11S86'           and usage = 'Blok D-1') or
+	(stage_name = '11S861'          and usage = 'Blok D-1') or
+	(stage_name = '11S861-01'       and usage = 'Blok D-1') or
+	(stage_name = '11S861-03'       and usage = 'Blok D-1') or
+	(stage_name = '17S40'           and usage = 'Blok DM') or
+	(stage_name = 'Arcas'           and first_launch_year is null) or
+	(stage_name = 'Blok DM-SL'      and usage = 'Blok D-1') or
+	(stage_name = 'Blok DM-SLB'     and usage = 'Blok D-1') or
+	(stage_name = 'Blok DM1'        and usage = 'Blok D-1') or
+	(stage_name = 'Blok DM3'        and usage = 'Blok D-1') or
+	(stage_name = 'Blok DM4'        and usage = 'Blok D-1') or
+	(stage_name = 'CZ-4 Stage 3'    and usage = 'CZ-4B (3)') or
+	(stage_name = 'CZ-4B Stage 3'   and usage = 'CZ-4B (3)') or
+	(stage_name = 'Dragon V2'       and usage = 'Dragon') or
+	(stage_name = 'FB-1 Stage 2'    and usage = 'CZ-2 Stage 2 vernier') or
+	(stage_name = 'Frangible Arcas' and impulse is null) or
+	(stage_name = 'GEM-60'          and first_launch_year = 2002) or
+	(stage_name = 'H-II SSB'        and first_launch_year is null) or
+	(stage_name = 'Hydac'           and engine_alt_name = 'H-28') or
+	(stage_name = 'Improved Orion'  and first_launch_year is null) or
+	(stage_name = 'M-34'            and usage = 'M-V [3]') or
+	(stage_name = 'RT-23 St 3'      and usage is null) or
+	(stage_name = 'SDC Viper'       and engine_alt_name is null) or
+	(stage_name = 'Star 48B'        and usage = 'STS PAM-D') or
+	(stage_name = 'Star 48B AKM'    and usage = 'STS PAM-D') or
+	(stage_name = 'Taurion'         and first_launch_year is null) or
+	(stage_name = 'X-15'            and engine_alt_name is null)
+)
+order by stage_name;
+
+alter table stage add constraint stage_pk primary key (stage_name);
+alter table stage add constraint stage_engine_fk foreign key (engine_id) references engine(engine_id);
+
+
+--STAGE_MANUFACTURER (bridge table)
+create table stage_manufacturer compress as
+select stage_name, column_value manufacturer_org_code
+from stage_staging_view
+cross join get_nt_from_list(stage_manufacturer_code_list, '/')
+order by 1,2;
+
+alter table stage_manufacturer add constraint stage_manufacturer_pk primary key (stage_name, manufacturer_org_code);
+alter table stage_manufacturer add constraint stage_manufacturer_stage_fk foreign key (stage_name) references stage(stage_name);
+alter table stage_manufacturer add constraint stage_manufacturer_manuf_fk foreign key (manufacturer_org_code) references organization(org_code);
+
+
+
+
+
+
 
 
 
@@ -1371,11 +1536,11 @@ family_staging
 launch_vehicle_staging
 engine_staging
 stage_staging
-launch_vehicle_stage_staging
 reference_staging
 site_staging
 platform_staging
 launch_staging
+launch_vehicle_stage_staging
 satellite_staging;
 
 
