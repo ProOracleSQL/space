@@ -14,16 +14,21 @@ TODO:
 
 
 Notes of JSR issues:
---Orgs: LTV Electronic Systems Division is out of alignment and has a weird "b" in one column.
---Orgs: Thales Alenia Space/Cannes (TAS-F) is the only one in ORG_CLASS "F".  Should it be "B" for business instead?
---orgs.html: Should "(MET)" be listed as "meteorological"
---orgs.html: It might help to explain some letters, like CC (control center?), and what PL stands for.
---Family: it doesn't list all the family letters.  Are B, C, and L all "missile"s?
---LV: The ICBM-T2 manufacturer is listed as "Minuteman".  Should it be "OATK" (Orbital ATK) instead?
---LV: The ICBM-T2 manufacturer is listed as "Minuteman".  Should it be "OATK" (Orbital ATK) instead?
---LV: Should BLDT launch vehicle's manufacturer be LARCN instead of BLDT?  BLDT is not in Org.  Based on: https://ntrs.nasa.gov/archive/nasa/casi.ntrs.nasa.gov/19740023231.pdf
---Orgs (and LV): Is there a missing Org for CMIK?  It's listed in LV but not ORG. http://www.astronautix.com/c/cmik.html
 
+Orgs: LTV Electronic Systems Division is out of alignment and has a weird "b" in one column.
+Orgs: Thales Alenia Space/Cannes (TAS-F) is the only one in ORG_CLASS "F".  Should it be "B" for business instead?
+orgs.html: Should "(MET)" be listed as "meteorological"
+orgs.html: It might help to explain some letters, like CC (control center?), and what PL stands for.
+Family: it doesn't list all the family letters.  Are B, C, and L all "missile"s?
+LV: The ICBM-T2 manufacturer is listed as "Minuteman".  Should it be "OATK" (Orbital ATK) instead?
+LV: The ICBM-T2 manufacturer is listed as "Minuteman".  Should it be "OATK" (Orbital ATK) instead?
+LV: Should BLDT launch vehicle's manufacturer be LARCN instead of BLDT?  BLDT is not in Org.  Based on: https://ntrs.nasa.gov/archive/nasa/casi.ntrs.nasa.gov/19740023231.pdf
+Orgs (and LV): Is there a missing Org for CMIK?  It's listed in LV but not ORG. http://www.astronautix.com/c/cmik.html
+Engines: "Xylidiene/Triethylamine" is too large and spills into the MASS field.
+Engines: "9KS1660" has a comma instead of a period for the thrust.
+Engines: There are a few double questions marks.
+Engine: Should ROCKL (not in Orgs) be RLABN (Rocket Lab in New Zealand)?
+Engine: Should ANSAR (not in Orgs) be ANSAL (Ansar Allah (Houthi) Revolutionary Committee Forces)?
 
 */
 
@@ -1024,8 +1029,86 @@ from
 ) convert;
 
 
---TODO
+--Engine
+create or replace view engine_staging_view as
+--Fix some codes and re-arrange columns.
+select
+	engine_name,
+	engine_family,
+	engine_alt_name,
+	first_launch_year,
+	usage,
+	mass,
+	impulse,
+	thrust,
+	specific_impulse,
+	duration,
+	chambers,
+	--Fix some codes not in Orgs.
+	case
+		when engine_manufacturer_code_list = 'ROCKL' then 'RLABN'
+		when engine_manufacturer_code_list = 'ANSAR' then 'ANSAL'
+		else engine_manufacturer_code_list
+	end engine_manufacturer_code_list,
+	oxidizer_list,
+	fuel_list
+from
+(
+	--Convert dates, numbers, and nulls.
+	select
+		engine_name,
+		replace(engine_manufacturer_code_list, '?') engine_manufacturer_code_list,
+		nullif(engine_family, '-') engine_family,
+		nullif(engine_alt_name, '-') engine_alt_name,
+		replace(nullif(nullif(oxidizer_list, '-'), 'UNK'), '?') oxidizer_list,
+		replace(nullif(nullif(fuel_list, '-'), 'UNK'), '?') fuel_list,
+		to_number(replace(nullif(mass, '-'), '?')) mass,
+		to_number(replace(nullif(impulse, '-'), '?')) impulse,
+		to_number(trim('s' from replace(replace(nullif(nullif(thrust, '-'), 'UNK'), '?'), ',', '.'))) thrust,
+		to_number(trim('s' from replace(nullif(specific_impulse, '-'), '?'))) specific_impulse,
+		to_number(replace(nullif(duration, '-'), '?')) duration,
+		to_number(replace(nullif(chambers, '-'), '?')) chambers,
+		extract(year from jsr_to_date(nullif(first_launch_year, '-'))) first_launch_year,
+		nullif(usage, '-') usage
+	from
+	(
+		--Trim and project relevant columns.
+		select
+			trim(engine_name) engine_name,
+			trim(engine_manufacturer) engine_manufacturer_code_list,
+			trim(engine_family) engine_family,
+			trim(engine_alt_name) engine_alt_name,
+			trim(oxidizer) oxidizer_list,
+			trim(
+				--Weird case where column spills over into next column.
+				case when fuel like '%Xylidiene/Triethylam%' then 'Xylidiene/Triethylamine' else fuel end
+			) fuel_list,
+			trim(
+				--Weird case where column spills over into next column.
+				case when mass like '%ine      -%' then '-' else mass end
+			) mass,
+			trim(replace(impulse, '?')) impulse,
+			case when
+				trim(thrust) = '92.0E-3' then '.092' else trim(thrust)
+			end thrust,
+			trim(specific_impulse) specific_impulse,
+			trim(duration) duration,
+			trim(chambers) chambers,
+			trim(first_launch_date) first_launch_year,
+			trim(usage) usage
+		from engine_staging
+		order by engine_name
+	) trim_and_project
+) convert;
 
+
+select * from stage_staging;
+select * from launch_vehicle_stage_staging;
+select * from reference_staging;
+select * from site_staging;
+select * from platform_staging;
+select * from launch_staging;
+select * from satellite_staging;
 
 
 
@@ -1162,7 +1245,123 @@ join
 	on launch_vehicle_staging_view.lv_manufacturer_org_codes = org_codes.lv_manufacturer_org_codes
 order by 1,2;
 
-alter table launch_vehicle_manufacturer add constraint launch_vehicle_man_org_fk  foreign key (lv_manufacturer_org_code) references organization(org_code);
+alter table launch_vehicle_manufacturer add constraint launch_vehicle_man_org_pk primary key (lv_id, lv_manufacturer_org_code);
+alter table launch_vehicle_manufacturer add constraint launch_vehicle_man_org_fk foreign key (lv_manufacturer_org_code) references organization(org_code);
+
+
+--PROPELLENT
+create table propellent as
+select
+	row_number() over (order by propellent_name) propellent_id,
+	propellent_name
+from
+(
+	select distinct column_value propellent_name
+	from
+	(
+		--All chemicals
+		select oxidizer_list propellent_list
+		from engine_staging_view
+		union
+		select fuel_list propellent_list
+		from engine_staging_view
+	)
+	cross join get_nt_from_list(propellent_list, '/')
+)
+order by propellent_name;
+
+alter table propellent add constraint propellent_pk primary key (propellent_id);
+alter table propellent add constraint propellent_uk unique (propellent_name);
+
+
+--ENGINE
+create table engine as
+select
+	row_number() over (order by engine_name, engine_family, engine_alt_name, first_launch_year, usage) engine_id,
+	engine_name,
+	engine_family,
+	engine_alt_name,
+	first_launch_year,
+	usage,
+	mass,
+	impulse,
+	thrust,
+	specific_impulse,
+	duration,
+	chambers chamber_count
+from engine_staging_view
+order by engine_id;
+
+alter table engine add constraint engine_pk primary key (engine_id);
+
+
+--ENGINE_PROPELLENT (bridge table)
+create table engine_propellent as
+--Propellents
+with propellent_list_and_id as
+(
+	--Propellent lists with propellent_ids.
+	select propellent_list, propellent_id
+	from
+	(
+		--Propellent lists expanded.
+		select propellent_list, column_value propellent_name
+		from
+		(
+			--All propellent lists.
+			select oxidizer_list propellent_list
+			from engine_staging_view
+			union
+			select fuel_list propellent_list
+			from engine_staging_view
+		)
+		cross join get_nt_from_list(propellent_list, '/')
+	) propellent_lists
+	join propellent
+		on propellent_lists.propellent_name = propellent.propellent_name
+),
+--Engines
+engines as
+(
+	select
+		dense_rank() over (order by engine_name, engine_family, engine_alt_name, first_launch_year, usage) engine_id,
+		oxidizer_list,
+		fuel_list
+	from engine_staging_view
+)
+--Oxidizers
+select engine_id, propellent_id, 'oxidizer' oxidizer_or_fuel
+from engines
+join propellent_list_and_id
+	on engines.oxidizer_list = propellent_list_and_id.propellent_list
+union all
+--Fuels
+select engine_id, propellent_id, 'fuel' oxidizer_or_fuel
+from engines
+join propellent_list_and_id
+	on engines.fuel_list = propellent_list_and_id.propellent_list
+order by 1,2,3;
+
+alter table engine_propellent add constraint engine_propellent_pk primary key (engine_id, propellent_id, oxidizer_or_fuel);
+alter table engine_propellent add constraint engine_propellent_engine_fk foreign key (engine_id) references engine(engine_id);
+alter table engine_propellent add constraint engine_propellent_prop_fk foreign key (propellent_id) references propellent(propellent_id);
+
+--ENGINE_MANUFACTURER
+create table engine_manufacturer as
+select engine_id, column_value manufacturer_org_code
+from
+(
+	select
+		dense_rank() over (order by engine_name, engine_family, engine_alt_name, first_launch_year, usage) engine_id,
+		engine_manufacturer_code_list
+	from engine_staging_view
+) engines
+cross join get_nt_from_list(engine_manufacturer_code_list, '/')
+order by 1,2;
+
+alter table engine_manufacturer add constraint engine_manufacturer_id primary key (engine_id, manufacturer_org_code);
+alter table engine_manufacturer add constraint engine_manufacturer_engine_fk foreign key (engine_id) references engine(engine_id);
+alter table engine_manufacturer add constraint engine_manufacturer_manuf_fk foreign key (manufacturer_org_code) references organization(org_code);
 
 
 
@@ -1178,16 +1377,6 @@ site_staging
 platform_staging
 launch_staging
 satellite_staging;
-
-
-
---70536
-select count(*)
-from launch_staging
-left join organization_staging
-	on trim(agency) = trim(organization_staging.code);
-
-
 
 
 
