@@ -29,9 +29,13 @@ Engines: "9KS1660" has a comma instead of a period for the thrust.
 Engines: There are a few double questions marks.
 Engine: Should ROCKL (not in Orgs) be RLABN (Rocket Lab in New Zealand)?
 Engine: Should ANSAR (not in Orgs) be ANSAL (Ansar Allah (Houthi) Revolutionary Committee Forces)?
+Stages: Should "AJ10-11B" be "AJ10-118"?  I can't find "AJ10-11B" in Engines.
+Stages: Should "GEM-63" be excluded, or also added to Engines?  Looks like it's not being used yet: http://www.northropgrumman.com/Capabilities/GEM/Pages/default.aspx 
 Stages: "Corporal Type 1" has a comman instead of a period for the length.
 Stages: Should "LS-A Booster" be "LS-A booster" to match the Engines file?  (That will make a difference to case-sensitive databases.)
 Stages: Should ANSAR (not in Orgs) be ANSAL (Ansar Allah (Houthi) Revolutionary Committee Forces)?
+Refs: "AWST960401-28" has a duplicate entry.
+Refs: "www.lapan.go.id" has a duplicate entry.
 
 
 */
@@ -499,8 +503,8 @@ reject limit unlimited
 --WARNING: This works, but the file format has "#" comments that don't work well.
 create table reference_staging
 (
-	Cite     varchar2(21),
-	Reference varchar2(120)
+	Cite        varchar2(21),
+	Reference   varchar2(120)
 )
 organization external
 (
@@ -523,6 +527,7 @@ organization external
 )
 reject limit unlimited
 /
+
 
 --WARNING: Two of the columns had to be manually resized.
 create table site_staging
@@ -1180,26 +1185,48 @@ where
 order by stage_name;
 
 
+--Reference.
+--
+--Remove the categories from the citations.
+create or replace view reference_staging_view as
+select citation, reference, reference_category
+from
+(
+	--References with last category.
+	select
+		citation, reference,
+		last_value(reference_category) ignore nulls over (order by line_number rows between unbounded preceding and current row) reference_category
+	from
+	(
+		--Decode some broken category names, remove comments.
+		select
+			line_number,
+			case
+				when reference_category = 'New, and cryptic (s' then 'New, and cryptic'
+				when reference_category = 'Personal communicat' then 'Personal communications'
+				when reference_category = 'Journals and Book S' then 'Journals and Book Series'
+				else reference_category
+			end reference_category,
+			citation,
+			reference
+		from
+		(
+			--References with trimmed category field.
+			select
+				rownum line_number,
+				cite citation,
+				reference,
+				case when cite like '# %' then replace(cite, '# ') else null end reference_category
+			from reference_staging
+		) trim
+		where citation <> '#'
+	) decode
+) reference_with_category
+where citation not like '#%'
+order by 1,2;
 
-select stage_name, count(*) from stage_staging_view group by stage_name order by count(*) desc;
-
-select * from stage_staging_view
-where engine_name not in (select engine_name from engine);
 
 
---Stages: Should "AJ10-11B" be "AJ10-118"?  I can't find "AJ10-11B" in Engines.
---Stages: Should "GEM-63" be excluded, or also added to Engines?  Looks like it's not being used yet: http://www.northropgrumman.com/Capabilities/GEM/Pages/default.aspx 
-
-
-select * from stage_
-
-LS-A Booster  --spelled wrong
-Sidewinder 1C --not needed
-TU-903        --not needed
-;
-select * from launch_vehicle_stage_staging where trim(stage_name) in ('LS-A Booster', 'Sidewinder 1C', 'TU-903')  ;
-
-select * from engine where lower(engine_name) like '%gem%';
 
 
 
@@ -1299,7 +1326,7 @@ alter table launch_vehicle_family add constraint launch_vehicle_family_pk primar
 
 
 --LAUNCH_VEHICLE
-create table launch_vehicle as
+create table launch_vehicle compress as
 select
 	row_number() over (order by lv_name, lv_variant) lv_id,
 	lv_name, lv_variant, lv_class, lv_family_code, lv_alias, min_stage, max_stage,
@@ -1314,7 +1341,7 @@ alter table launch_vehicle add constraint launch_vehicle_family_fk foreign key (
 
 
 --LAUNCH_VEHICLE_MANUFACTURER (bridge_table)
-create table launch_vehicle_manufacturer as
+create table launch_vehicle_manufacturer compress as
 select
 	lv_id,
 	case
@@ -1351,7 +1378,7 @@ alter table launch_vehicle_manufacturer add constraint launch_vehicle_man_org_fk
 
 
 --PROPELLENT
-create table propellent as
+create table propellent compress as
 select
 	row_number() over (order by propellent_name) propellent_id,
 	propellent_name
@@ -1376,7 +1403,7 @@ alter table propellent add constraint propellent_uk unique (propellent_name);
 
 
 --ENGINE
-create table engine as
+create table engine compress as
 select
 	row_number() over (order by engine_name, engine_family, engine_alt_name, first_launch_year, usage) engine_id,
 	engine_name,
@@ -1397,7 +1424,7 @@ alter table engine add constraint engine_pk primary key (engine_id);
 
 
 --ENGINE_PROPELLENT (bridge table)
-create table engine_propellent as
+create table engine_propellent compress as
 --Propellents
 with propellent_list_and_id as
 (
@@ -1448,7 +1475,7 @@ alter table engine_propellent add constraint engine_propellent_engine_fk foreign
 alter table engine_propellent add constraint engine_propellent_prop_fk foreign key (propellent_id) references propellent(propellent_id);
 
 --ENGINE_MANUFACTURER (bridge table)
-create table engine_manufacturer as
+create table engine_manufacturer compress as
 select engine_id, column_value manufacturer_org_code
 from
 (
@@ -1466,7 +1493,7 @@ alter table engine_manufacturer add constraint engine_manufacturer_manuf_fk fore
 
 
 --STAGE
-create table stage as
+create table stage compress as
 select stage_name, stage_family, stage_alt_name, length, diameter, launch_mass, dry_mass,
 	stage_staging_view.thrust, stage_staging_view.duration, engine_id, engine_count
 from stage_staging_view
@@ -1523,9 +1550,14 @@ alter table stage_manufacturer add constraint stage_manufacturer_stage_fk foreig
 alter table stage_manufacturer add constraint stage_manufacturer_manuf_fk foreign key (manufacturer_org_code) references organization(org_code);
 
 
+--REFERENCE
+create table reference compress as
+--Use distinct to avoid two duplicates:  "AWST960401-28" and "www.lapan.go.id".
+select distinct citation, reference, reference_category
+from reference_staging_view
+order by 1,2;
 
-
-
+alter table reference add constraint reference_pk primary key (citation);
 
 
 
