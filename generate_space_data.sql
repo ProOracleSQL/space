@@ -36,6 +36,9 @@ Stages: Should "LS-A Booster" be "LS-A booster" to match the Engines file?  (Tha
 Stages: Should ANSAR (not in Orgs) be ANSAL (Ansar Allah (Houthi) Revolutionary Committee Forces)?
 Refs: "AWST960401-28" has a duplicate entry.
 Refs: "www.lapan.go.id" has a duplicate entry.
+Sites: There are two empty rows with only "#" for the site name.
+Sites: Should "NKAZ" be removed?  It's listed as the type "TGT", which I assume is target.  But that category is not listed on sites.html, and it's not used in any launch.
+Sites: These parent codes look to be typos or case differences: "BLORIG" ==> "BLOR","DDR" ==> "DD","Luna" ==> "LUNA","NRC" ==> "NRCC","OTRAG" ==> "OTRG","ROCKL" ==> "RLABN","SCALED" ==> "SCAL","Yemen" ==> "YE"
 
 
 */
@@ -1226,6 +1229,171 @@ where citation not like '#%'
 order by 1,2;
 
 
+--Site
+create or replace view site_staging_view as
+--Decode, remove SITE_UCODE.  (Not needed?)
+select
+	row_number() over (order by site_name, site_code) site_id,
+	site_name, site_code,
+	case
+		when site_type is null then null
+		when site_type = 'LS' then 'launch site'
+		when site_type = 'LP' then 'launch point'
+		when site_type = 'LC' then 'launch cruise'
+		when site_type = 'LZ' then 'launch zone'
+		else 'ERROR - Unexpected value "'||site_type||'"'
+	end site_type,
+	state_org_code, start_date, stop_date, site_short_name, site_full_name,
+	site_location, longitude, latitude, degrees_uncertainty, parent_org_code_list
+from
+(
+	--Project and convert relevant columns
+	select
+		site site_name,
+		code site_code,
+		nullif(ucode, '-') site_ucode,
+		type site_type,
+		statecode state_org_code,
+		jsr_to_date(trim(':' from (nullif(tstart, '-')))) start_date,
+		jsr_to_date(nullif(nullif(tstop, '-'), '*')) stop_date,
+		shortname site_short_name,
+		name site_full_name,
+		nullif(location, '-') site_location,
+		to_number(nullif(trim(longitude), '-')) longitude,
+		to_number(nullif(trim(latitude), '-')) latitude,
+		to_number(error) degrees_uncertainty,
+		replace(nullif(parent, '-'), '?') parent_org_code_list
+	from site_staging
+	--Ignore empty rows
+	where site <> '#'
+		--Ignore TGT, which excludes NKAZ (OGCh target area, Novaya Kazanka, Kazakhstan),
+		--which doens't show up in ALL anyway.
+		and not (site = 'NKAZ' and type = 'TGT')
+	order by site
+) convert_and_project
+order by 1,2;
+
+
+--Ensure no duplicates.
+select site_name, site_code
+from site_staging_view
+group by site_name, site_code
+having count(*) > 1;
+
+select * from site_staging_view;
+
+
+
+--TODO: Problems matching site to launch.
+select site, code
+from site_staging
+group by site, code
+having count(*) > 1;
+
+
+select * from launch_staging;
+
+CC, LA
+;
+
+--Need to match launch_staging with site_staging
+select launch_site, launch_pad from launch_staging;
+select site, code, ucode from site_staging;
+
+
+select *
+from
+(
+	select launch_staging.launch_tag, launch_site, launch_pad, count(*) over (partition by launch_tag) launch_count, site_staging.*
+	from
+	(
+		select
+			launch_tag,
+			replace(nullif(launch_site, '-'), '?') launch_site,
+			replace(nullif(launch_pad, '-'), '?') launch_pad
+		from launch_staging
+	) launch_staging
+	left join site_staging
+		on
+		(
+			launch_staging.launch_site = site_staging.site and
+			nvl(launch_staging.launch_pad, 'none') = nvl(site_staging.code, 'none')
+		)
+)
+where site is null
+--No duplicates.
+--where launch_count >= 2
+;
+
+
+
+
+
+select launches.launch_tag, launch_site, launch_pad, destination_site, count(*) over (partition by launch_tag) launch_count, site_staging.*
+from
+(
+
+	--Split the launch pads into launch pad and destination.
+	select
+		launch_tag,
+		--ALL: "Vernon" should be "VERNON" to match Sites.
+		case
+			when launch_site = 'Vernon' then 'VERNON'
+			else launch_site
+		end launch_site,
+		case
+			when launch_pad like '%->%' then
+				trim(regexp_replace(launch_pad, '->.*'))
+			else
+				launch_pad
+		end launch_pad,
+		case
+			when launch_pad like '%->%' then
+				trim(regexp_replace(launch_pad, '.*->'))
+			else
+				launch_pad
+		end destination_site
+	from
+	(
+		select
+			launch_tag,
+			replace(nullif(launch_site, '-'), '?') launch_site,
+			replace(nullif(launch_pad, '-'), '?') launch_pad
+		from launch_staging
+	)
+	--TEMP
+	--where launch_pad like '%->%'
+) launches
+left join
+	(
+		select
+			site,
+			case
+				when site = code then null
+				else code
+			end code
+		from site_staging
+	) site_staging
+	on
+	(
+		launches.launch_site = site_staging.site and
+		nvl(launches.launch_pad, 'none') = nvl(site_staging.code, 'none')
+	)
+
+where site is null
+		;
+
+select * from launch_staging where launch_site = 'Vernon';
+
+
+select launch_site
+from launch_staging
+where launch_site = 'Vernon'
+;
+
+select * from site_staging where site = 'Vernon';
+
+select * from platform_staging;
 
 
 
@@ -1558,6 +1726,60 @@ from reference_staging_view
 order by 1,2;
 
 alter table reference add constraint reference_pk primary key (citation);
+
+
+--SITE
+create table site compress as
+select
+	site_id,
+	site_name,
+	site_code,
+	site_type,
+	state_org_code,
+	start_date,
+	stop_date,
+	site_short_name,
+	site_full_name,
+	site_location,
+	longitude,
+	latitude,
+	degrees_uncertainty
+from site_staging_view
+order by 1,2;
+
+alter table site add constraint site_pk primary key (site_id);
+alter table site add constraint site_organization_fk foreign key (state_org_code) references organization(org_code);
+
+drop table site_organization;
+--SITE_ORGANIZATION (bridge table)
+create table site_organization compress as
+--Fix some mistakes
+select
+	site_id,
+	case
+		when org_code = 'BLORIG' then 'BLOR'
+		when org_code = 'DDR' then 'DD'
+		when org_code = 'Luna' then 'LUNA'
+		when org_code = 'NRC' then 'NRCC'
+		when org_code = 'OTRAG' then 'OTRG'
+		when org_code = 'ROCKL' then 'RLABN'
+		when org_code = 'SCALED' then 'SCAL'
+		when org_code = 'Yemen' then 'YE'
+		else org_code			
+	end org_code
+from
+(
+	--Split the codes
+	select site_id, column_value org_code
+	from site_staging_view
+	cross join get_nt_from_list(parent_org_code_list, '/')
+) codes
+order by 1,2;
+
+alter table site_organization add constraint site_organization_pk primary key (site_id, org_code);
+alter table site_organization add constraint site_org_site_fk foreign key(site_id) references site(site_id);
+alter table site_organization add constraint site_org_org_fk foreign key(org_code) references organization(org_code);
+
 
 
 
