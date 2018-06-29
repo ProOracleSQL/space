@@ -39,6 +39,11 @@ Refs: "www.lapan.go.id" has a duplicate entry.
 Sites: There are two empty rows with only "#" for the site name.
 Sites: Should "NKAZ" be removed?  It's listed as the type "TGT", which I assume is target.  But that category is not listed on sites.html, and it's not used in any launch.
 Sites: These parent codes look to be typos or case differences: "BLORIG" ==> "BLOR","DDR" ==> "DD","Luna" ==> "LUNA","NRC" ==> "NRCC","OTRAG" ==> "OTRG","ROCKL" ==> "RLABN","SCALED" ==> "SCAL","Yemen" ==> "YE"
+Platforms - Is B-52H missing from the file?
+Platforms - Should "DDG 174" be "DDG-174"?  That will match launches and the platform name.
+Platforms - Shift "MiG31D-72" UCODE one character to the right, it's not aligned properly.
+Launch - all - For "2014-S19", should the Platform be "INS-OPV" instead of "INS"?  "INS" doesn't exist in platforms, but it's in the short name for "INS-OPV".
+
 
 
 */
@@ -1274,6 +1279,63 @@ from
 order by 1,2;
 
 
+--Platform
+create or replace view platform_staging_view as
+--Decode
+select
+	--Fix some typos and alignment issues.
+	case
+		when platform_code = 'DDG 174' then 'DDG-174'
+		when platform_code = 'MiG31D-72 M' then 'MiG31D-72'
+		else platform_code
+	end platform_code,
+	case
+		when platform_ucode = 'DDG 174' then 'DDG-174'
+		when platform_ucode = 'iG31D-72' then 'MiG31D-72'
+		else platform_ucode
+	end platform_ucode,
+	platform_state_org_code,
+	platform_type,
+	case
+		when platform_class is null then null
+		when platform_class = 'A' then 'amateur/academic'
+		when platform_class = 'B' then 'business'
+		when platform_class = 'C' then 'civilian'
+		when platform_class = 'D' then 'defense'
+		else 'ERROR - Unexpected value "'||platform_class||'"'
+	end platform_class,
+	platform_shortname,
+	platform_name,
+	platform_parent_org_code
+from
+(
+	--Project relevant columns.
+	select
+		code platform_code,
+		ucode platform_ucode,
+		statecode platform_state_org_code,
+		type platform_type,
+		class platform_class,
+		shortname platform_shortname,
+		name platform_name, 
+		parent platform_parent_org_code
+	from platform_staging
+)
+--Missing row:
+union all
+select 'B-52H', 'B-52H', 'US', 'AIR', 'defense', 'AIR   B-52H', 'B-52 Stratofortress', 'USAF'
+from dual
+where not exists (select * from platform_staging where code = 'B-52H')
+order by 1,2;
+
+
+
+
+
+--TODO:
+--Launch - all - For "2014-S19", should the Platform be "INS-OPV" instead of "INS"?  "INS" doesn't exist in platforms, but it's in the short name for "INS-OPV".
+
+
 --Ensure no duplicates.
 select site_name, site_code
 from site_staging_view
@@ -1750,7 +1812,7 @@ order by 1,2;
 alter table site add constraint site_pk primary key (site_id);
 alter table site add constraint site_organization_fk foreign key (state_org_code) references organization(org_code);
 
-drop table site_organization;
+
 --SITE_ORGANIZATION (bridge table)
 create table site_organization compress as
 --Fix some mistakes
@@ -1781,8 +1843,27 @@ alter table site_organization add constraint site_org_site_fk foreign key(site_i
 alter table site_organization add constraint site_org_org_fk foreign key(org_code) references organization(org_code);
 
 
+--PLATFORM
+create table platform compress as
+select
+	platform_code,
+	platform_ucode,
+	platform_state_org_code,
+	platform_type,
+	platform_class,
+	platform_shortname platform_short_name,
+	platform_name,
+	platform_parent_org_code
+from platform_staging_view
+order by 1,2;
+
+alter table platform add constraint platform_pk primary key (platform_code);
+alter table platform add constraint platform_state_fk foreign key (platform_state_org_code) references organization(org_code);
+alter table platform add constraint platform_parent_fk foreign key (platform_parent_org_code) references organization(org_code);
 
 
+
+select * from platform;
 
 
 organization_staging
