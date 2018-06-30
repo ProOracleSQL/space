@@ -43,8 +43,10 @@ Platforms - Is B-52H missing from the file?
 Platforms - Should "DDG 174" be "DDG-174"?  That will match launches and the platform name.
 Platforms - Shift "MiG31D-72" UCODE one character to the right, it's not aligned properly.
 Launch - all - For "2014-S19", should the Platform be "INS-OPV" instead of "INS"?  "INS" doesn't exist in platforms, but it's in the short name for "INS-OPV".
-
-
+launchcols.html - Minor typos: ifno --> if no, sucess --> success, assessements --> assessments, fo --> of, Addtional --> Additional
+launchcols.html and all - Descriptions are missing for some launch code categories.  Here are my guesses:  'H' -> 'sounding rocket', 'R' -> 'ballistic missile test', 'X' -> 'lunar return', 'Y' -> 'suborbital spaceplane'.
+launchcols.html and all- What are the launch statuses "D" and "E"?  I'm guessing something like "destroyed before launch"?
+all - Some of the payload groups look weird: "-                 MLV-1","-                 MLV-2","-                 MLV-3","-                 MLV-4","-                 MLV-5","-                 MLV-6","-                 MLV-8","-                 MLV-9","-       CYGNUS"
 
 */
 
@@ -775,8 +777,6 @@ reject limit unlimited
 /
 comment on table satellite_staging is 'See this website for a description of the data: http://planet4589.org/space/log/satcat.html';
 
-
-
 --------------------------------------------------------------------------------
 --#5. Create helper functions for conversions.
 --------------------------------------------------------------------------------
@@ -809,7 +809,18 @@ begin
 		else
 			return to_date(v_date_string, 'YYYY Mon DD');
 		end if;
-	--TODO: Time
+	--Quarter.
+	elsif length(v_date_string) = 7 and lower(v_date_string) like '%q%' then
+		return to_date(substr(v_date_string, 1, 4) || ' ' ||
+			case substr(v_date_string, 7, 1)
+				when 1 then '01'
+				when 2 then '04'
+				when 3 then '07'
+				when 4 then '10'
+			end
+			, 'YYYY MM');
+	elsif length(v_date_string) >= 12 then
+		return to_date(v_date_string, 'YYYY Mon DD HH24MI:SS');
 	else
 		raise_application_error(-20000, 'Unexpected format for this date string: ' || p_date_string);
 	end if;
@@ -1329,34 +1340,110 @@ where not exists (select * from platform_staging where code = 'B-52H')
 order by 1,2;
 
 
+--Launch
+--
+--Convert and decode columns.
+create or replace view launch_staging_view as
+select
+	launch_tag,
+	launch_jd,
+	jsr_to_date(launch_date) launch_date,
+	lv_type,
+	variant,
+	flight_id,
+	flight,
+	mission,
+	flightcode,
+	--Fix platform typos
+	case
+		when platform = 'INS' then 'INS-OPV'
+		else platform
+	end  platform,
+	launch_site,
+	launch_pad,
+	apogee,
+	range,
+	dest,
+	agency_org_code_list,
+	--Split into category and status
+	case
+		when substr(launch_code, 1, 1) = 'O' then 'orbital'
+		when substr(launch_code, 1, 1) = 'M' then 'miltary missile'
+		when substr(launch_code, 1, 1) = 'T' then 'test rocket'
+		when substr(launch_code, 1, 1) = 'A' then 'atmospheric rocket'
+		when substr(launch_code, 1, 1) = 'S' then 'suborbital rocket'
+		when substr(launch_code, 1, 1) = 'D' then 'deep space'
+		--These are my guesses
+		when substr(launch_code, 1, 1) = 'H' then 'sounding rocket'
+		when substr(launch_code, 1, 1) = 'R' then 'ballistic missile test'
+		when substr(launch_code, 1, 1) = 'X' then 'lunar return'
+		when substr(launch_code, 1, 1) = 'Y' then 'suborbital spaceplane'
+		when substr(launch_code, 1, 1) = '-' then null
+		else 'ERROR - Unexpected value "'||substr(launch_code, 1, 1)||'"'
+	end launch_category,
+	case
+		when substr(launch_code, 2, 1) = 'S' then 'success'
+		when substr(launch_code, 2, 1) = 'F' then 'failure'
+		when substr(launch_code, 2, 1) = 'U' then 'unknown'
+		--My guesses:
+		when substr(launch_code, 2, 1) in ('E', 'D') then 'destroyed before launch'
+		else 'ERROR - Unexpected value "'||substr(launch_code, 2, 1)||'"'
+	end launch_status,
+	--Split into payload_org_list, payload_principle_investigators
+	payload_group,
 
 
 
---TODO:
---Launch - all - For "2014-S19", should the Platform be "INS-OPV" instead of "INS"?  "INS" doesn't exist in platforms, but it's in the short name for "INS-OPV".
+	category_list flight_type,
+	--Combine the citations for simplicity.
+	case
+		when ltcite is not null and cite is not null then ltcite || '/' || cite
+		else ltcite || cite
+	end cite_list
+from
+(
+	--Project and cleanup relevant columns
+	select
+		launch_tag,
+		launch_jd,
+		launch_date,
+		lv_type,
+		replace(nullif(variant, '-'), '?') variant,
+		replace(nullif(flight_id, '-'), '?') flight_id,
+		replace(nullif(flight, '-'), '?') flight,
+		nullif(mission, '-') mission,
+		nullif(flightcode, '-') flightcode,
+		nullif(platform, '-') platform,
+		launch_site,
+		replace(nullif(launch_pad, '-'), '?') launch_pad,
+		nullif(trim(apogee), '-') apogee,
+		nullif(trim(range), '-') range,
+		nullif(dest, '-') dest,
+		replace(agency, '?') agency_org_code_list,
+		launch_code,
+		case
+			--Looks like a formatting problem.
+			when payload_group like '-       %' then null
+			else replace(nullif(payload_group, '-'), '?')
+		end payload_group,
+		category category_list,
+		nullif(ltcite, '-') ltcite,
+		nullif(cite, '-') cite
+	from launch_staging
+	order by launch_tag
+);
 
 
---Ensure no duplicates.
-select site_name, site_code
-from site_staging_view
-group by site_name, site_code
-having count(*) > 1;
+--TODO: NROL is not in Orgs, and their payload group isn't formatted correctly.
+--TODO: AFSPC-X should be AFSPC?
+select distinct payload_group
+from launch_staging_view
+where payload_group not like '%/%'
+order by 1;
 
-select * from site_staging_view;
-
-
-
---TODO: Problems matching site to launch.
-select site, code
-from site_staging
-group by site, code
-having count(*) > 1;
+select * from launch_staging_view where launch_status like 'ERROR%';
 
 
-select * from launch_staging;
-
-CC, LA
-;
 
 --Need to match launch_staging with site_staging
 select launch_site, launch_pad from launch_staging;
