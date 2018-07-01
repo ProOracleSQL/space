@@ -11,12 +11,14 @@ TODO:
 4. Create final presentation tables.
 5. Create exports of presentation tables into easy-to-load scripts.
 6. Host those exports on different sites.
+7. What is "TA" orbit class?
 
 
 Notes for future refreshes:
 1. You can probably remove or change this condition on SATELLITE_STAGING_VIEW: where jsr_to_date(launch_date) < date '2017-09-07'
 2. Add some fields if the are populated with more data.  For example, I excluded launch.range because it was almost empty.
 3. References were excluded, they are too messy.
+4. Payload investigator names are not included.
 
 
 Notes of JSR issues:
@@ -64,12 +66,12 @@ all: "Vernon" should be "VERNON" to match case of Sites.
 all: Change "LC31/ShPU-12" to "LC31/ShPU-12" to match the case in sites.  (Note the lowercase "u".)
 all: Change "GTSP-4" to "GTsP-4" to match the case in sites.
 all: What is launch pad "RW13"?  It doesn't exist in sites.
-
-
+all: Payload group "91SMW" should probably be "91MW".  "91SMW" does not exist in Orgs.
+satcat.txt - There are lots of duplicate owner-operators, like "NRO/NRO".  Should the second value be different?
 satcat.txt - S043190 and S043190 are empty.
-
-
-
+satcat.txt: The payload organizations "COMDE" should be "COMDEV", and "SURRE" should be "SURREY".
+orbits.html - Add "VHEO" ("Very High"?), it's used in satcat.txt.
+orrbits.html - What is "TA" orbit class?  It appears a few times in satcat.txt.
 
 */
 
@@ -1544,7 +1546,7 @@ order by launch_id;
 create or replace view satellite_staging_view as
 --Decode and convert.
 select
-	satcat,
+	substr(satcat, 2) norad,
 	case
 		when regexp_like(cospar, '^[0-9][0-9][0-9][0-9]') then regexp_replace(trim(cospar), '[A-Z]', null)
 		when regexp_like(cospar, '^[0-9][0-9] ') then
@@ -1580,6 +1582,7 @@ select
 			, 'Chi', 'CHI')
 		else cospar
 	end sat_launch_tag,
+	cospar,
 	official_name,
 	secondary_name,
 	jsr_to_date(launch_date) launch_date,
@@ -1590,7 +1593,7 @@ select
 	to_number(regexp_substr(numbers, '[-0-9.]+', 1, 2)) perigee,
 	to_number(regexp_substr(numbers, '[-0-9.]+', 1, 3)) apogee,
 	to_number(regexp_substr(numbers, '[-0-9.]+', 1, 4)) inclination,
-	orbit_class_list,
+	orbit_class,
 	owner_operator_org_code_list
 from
 (
@@ -1605,8 +1608,8 @@ from
 		status_date,
 		orbit_date,
 		replace(replace(numbers, '-'), 'x') numbers,
-		orbit_class orbit_class_list,
-		owner_operator owner_operator_org_code_list
+		orbit_class,
+		replace(owner_operator, '?') owner_operator_org_code_list
 	from satellite_staging
 	--Ignore some empty rows:
 	where cospar is not null
@@ -1615,96 +1618,6 @@ from
 --Ignore satellite data that is later than the latest launch data.
 where jsr_to_date(launch_date) < date '2017-09-07'
 order by satcat;
-
-
-
-
-
-
-
---Make sure all satellites line up with a launch
-select *
-from satellite_staging_view
-where sat_launch_tag not in (select launch_tag from launch_staging_view)
-;
-
-
-
-select launches.launch_tag, launch_site, launch_pad, destination_site, count(*) over (partition by launch_tag) launch_count, site_staging.*
-from
-(
-
-	--Split the launch pads into launch pad and destination.
-	select
-		launch_tag,
-		--ALL: "Vernon" should be "VERNON" to match Sites.
-		case
-			when launch_site = 'Vernon' then 'VERNON'
-			else launch_site
-		end launch_site,
-		case
-			when launch_pad like '%->%' then
-				trim(regexp_replace(launch_pad, '->.*'))
-			else
-				launch_pad
-		end launch_pad,
-		case
-			when launch_pad like '%->%' then
-				trim(regexp_replace(launch_pad, '.*->'))
-			else
-				launch_pad
-		end destination_site
-	from
-	(
-		select
-			launch_tag,
-			replace(nullif(launch_site, '-'), '?') launch_site,
-			replace(nullif(launch_pad, '-'), '?') launch_pad
-		from launch_staging
-	)
-	--TEMP
-	--where launch_pad like '%->%'
-) launches
-left join
-	(
-		select
-			site,
-			case
-				when site = code then null
-				else code
-			end code
-		from site_staging
-	) site_staging
-	on
-	(
-		launches.launch_site = site_staging.site and
-		nvl(launches.launch_pad, 'none') = nvl(site_staging.code, 'none')
-	)
-
-where site is null
-		;
-
-select * from launch_staging where launch_site = 'Vernon';
-
-
-select launch_site
-from launch_staging
-where launch_site = 'Vernon'
-;
-
-select * from site_staging where site = 'Vernon';
-
-select * from platform_staging;
-
-
-
-
-select * from stage_staging;
-select * from launch_vehicle_stage_staging;
-select * from site_staging;
-select * from platform_staging;
-select * from launch_staging;
-select * from satellite_staging;
 
 
 
@@ -2183,92 +2096,115 @@ alter table launch add constraint launch_platform_fk foreign key(platform_code) 
 create index launch_idx1 on launch(lv_id);
 create index launch_idx2 on launch(site_id);
 create index launch_idx3 on launch(platform_code);
+create index launch_idx4 on launch(launch_tag);
 
 
---TODO: agency_org_code_list, payload_group, payload_investigators
-select * from launch_staging_view;
-
-select launch_id, flight_type
+--LAUNCH_AGENCY (bridge table)
+create table launch_agency compress as
+select launch_id, column_value agency_org_code
 from launch_staging_view
-cross join jheller.
-;
+cross join get_nt_from_list(agency_org_code_list, '/')
+order by 1,2;
+
+alter table launch_agency add constraint launch_agency_pk primary key (launch_id, agency_org_code);
+alter table launch_agency add constraint launch_agency_launch_fk foreign key (launch_id) references launch(launch_id);
+alter table launch_agency add constraint launch_agency_org_fk foreign key (agency_org_code) references organization(org_code);
 
 
+--LAUNCH_PAYLOAD_ORG (bridge table)
+create table launch_payload_org compress as
+select
+	launch_id,
+	case
+		when column_value = '91SMW' then '91MW'
+		else column_value
+	end payload_org_code
+from launch_staging_view
+cross join get_nt_from_list(payload_group, '/')
+order by 1,2;
+
+alter table launch_payload_org add constraint launch_payload_org_pk primary key (launch_id, payload_org_code);
+alter table launch_payload_org add constraint launch_payload_org_launch_fk foreign key (launch_id) references launch(launch_id);
+alter table launch_payload_org add constraint launch_payload_org_org_fk foreign key (payload_org_code) references organization(org_code);
 
 
-select *
-from launch_reference
-where citation not in (select citation from reference);
+--Satellite
+create table satellite compress as
+select
+	--Remote S to make it a real norad satellite catalog identifier.
+	norad,
+	cospar,
+	official_name,
+	secondary_name,
+	(
+		select launch_id
+		from launch
+		where launch.launch_tag = satellite_staging_view.sat_launch_tag
+	) launch_id,
+	current_status,
+	status_date,
+	orbit_date,
+	orbit_period,
+	perigee,
+	apogee,
+	inclination,
+	case
+		when orbit_class is null then null
+		when orbit_class = 'ATM' then 'Atmospheric'
+		when orbit_class = 'TAO' then 'Trans-Atm.'
+		when orbit_class = 'SO' then 'Suborbital'
+		when orbit_class = 'LEO/E' then 'Equatorial'
+		when orbit_class = 'LEO/I' then 'Intermediate'
+		when orbit_class = 'LEO/P' then 'Polar'
+		when orbit_class = 'LEO/S' then 'Sun-Synch'
+		when orbit_class = 'LEO/R' then 'Retrograde'
+		when orbit_class = 'MEO' then 'Medium'
+		when orbit_class = 'HEO' then 'Highly Ellip'
+		when orbit_class = 'HEO/M' then 'Molniya'
+		when orbit_class = 'GTO' then 'GEO Transfer'
+		when orbit_class = 'GEO/S' then 'Stationary'
+		when orbit_class = 'GEO/I' then 'Inclined GEO'
+		when orbit_class = 'GEO/T' then 'Synchronous'
+		when orbit_class = 'GEO/D' then 'Drift GEO'
+		when orbit_class = 'GEO/SI' then 'Inclined GEO'
+		when orbit_class = 'GEO/DR' then 'Drift GEO'
+		when orbit_class = 'GEO/ID' then 'Inclined Drift'
+		when orbit_class = 'GEO/NS' then 'Near-synch'
+		when orbit_class = 'DSO' then 'Deep Space'
+		when orbit_class = 'DHEO' then 'Deep Eccentric'
+		when orbit_class = 'CLO' then 'Cislunar'
+		when orbit_class = 'EEO' then 'Earth Escape'
+		when orbit_class = 'HCO' then 'Heliocentric'
+		when orbit_class = 'PCO' then 'Planetocentric'
+		when orbit_class = 'PEO' then 'Planetary escape trajectory'
+		when orbit_class = 'SSE' then 'Solar System Escape'
+		when orbit_class = 'VHEO' then 'Very High'
+		else 'ERROR - Unexpected value "'||orbit_class||'"'
+	end orbit_class
+from satellite_staging_view
+order by norad;
+
+alter table satellite add constraint satellite_pk primary key (norad);
+alter table satellite add constraint satellite_fk foreign key(launch_id) references launch(launch_id);
+create index satellite_idx1 on satellite(launch_id);
 
 
+--SATELLITE_ORG
+create table satellite_org compress as
+select distinct
+	norad,
+	case
+		when column_value = 'COMDE' then 'COMDEV'
+		when column_value = 'SURRE' then 'SURREY'
+		else column_value
+	end owner_operator_org_code
+from satellite_staging_view
+cross join get_nt_from_list(owner_operator_org_code_list, '/')
+order by norad, owner_operator_org_code;
 
-drop table launch_reference;
-select launch_id, citation
-from launch_reference
-group by launch_id, citation
-having count(*) >= 2
-;
-
-
-
-drop table launch_reference;
-
-select * from launch;
-
-select * from launch_staging_view where range is not null;
-
-select * from launch_staging_view where launch_category is null;
-
-
-
-
-
-
---payload_group
---payload_investigators
---cite_list
-
-
-select * from site;
-
-
-
-;
-
-select * from launch_vehicle;
-
-
-
-
-
-select * from reference;
-
-;
-
-
-
-
---Remove satellite data that is more recent than launch data.
---delete from satellite_staging where launch_date like '2018%';
-
---Launch_tag: 1960-A227
-select * from launch_staging;
-
---1967-063F
-select *
-from satellite_staging;
-
-
-
-select current_status, count(*)
-from satellite_staging
-group by current_status
-order by count(*) desc;
-
-
-
-
-
+alter table satellite_org add constraint satellite_org_pk primary key(norad, owner_operator_org_code);
+alter table satellite_org add constraint satellite_org_sat_fk foreign key(norad) references satellite(norad);
+alter table satellite_org add constraint satellite_org_org_fk foreign key(owner_operator_org_code) references organization(org_code);
 
 
 
@@ -2290,5 +2226,8 @@ join launch_staging_view
 	on launch.launch_id = launch_staging_view.launch_id
 where lv_id is null;
 
+--Do all launches have a valid site?
 select * from launch where site_id is null order by launch_id;
 
+--Do all the satellites have a valid launch_id?  (With the exception of "Unknown Oko debris".
+select * from satellite where launch_id is null;
