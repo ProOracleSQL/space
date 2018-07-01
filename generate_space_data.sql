@@ -16,6 +16,7 @@ TODO:
 Notes for future refreshes:
 1. You can probably remove or change this condition on SATELLITE_STAGING_VIEW: where jsr_to_date(launch_date) < date '2017-09-07'
 2. Add some fields if the are populated with more data.  For example, I excluded launch.range because it was almost empty.
+3. References were excluded, they are too messy.
 
 
 Notes of JSR issues:
@@ -60,6 +61,10 @@ all: The variant for Falcon 9 FT does not exist in LV.  Should the "FT" be chang
 all: Should the launch "Soyuz-2-1A"/"Volga" be "Soyuz-2-1V"/"Volga"?
 all: For 2017-002, should "Kuaizhou-1A" be "Kuaizhou"?  Or should "Kuaizhou-1A" be added to LV?
 all: "Vernon" should be "VERNON" to match case of Sites.
+all: Change "LC31/ShPU-12" to "LC31/ShPU-12" to match the case in sites.  (Note the lowercase "u".)
+all: Change "GTSP-4" to "GTsP-4" to match the case in sites.
+all: What is launch pad "RW13"?  It doesn't exist in sites.
+
 
 satcat.txt - S043190 and S043190 are empty.
 
@@ -221,7 +226,8 @@ select get_external_table_ddl('launch_vehicle_staging', 'sdb_sdb', 'LV') from du
 select get_external_table_ddl('engine_staging', 'sdb_sdb', 'Engines') from dual;
 select get_external_table_ddl('stage_staging', 'sdb_sdb', 'stages') from dual;
 select get_external_table_ddl('launch_vehicle_stage_staging', 'sdb_sdb', 'LV_Stages') from dual;
-select get_external_table_ddl('reference_staging', 'sdb_sdb', 'Refs') from dual;
+--Commented out - not clean enough to use.
+--select get_external_table_ddl('reference_staging', 'sdb_sdb', 'Refs') from dual;
 select get_external_table_ddl('site_staging', 'sdb_sdb', 'Sites') from dual;
 select get_external_table_ddl('platform_staging', 'sdb_sdb', 'Platforms') from dual;
 select get_external_table_ddl('launch_staging', 'sdb', 'lvtemplate') from dual;
@@ -528,7 +534,9 @@ organization external
 reject limit unlimited
 /
 
+/*
 --WARNING: This works, but the file format has "#" comments that don't work well.
+--Commented out - not clean enough to use yet.
 create table reference_staging
 (
 	Cite        varchar2(21),
@@ -555,7 +563,7 @@ organization external
 )
 reject limit unlimited
 /
-
+*/
 
 --WARNING: Two of the columns had to be manually resized.
 create table site_staging
@@ -1256,6 +1264,8 @@ order by lv_name, stage_name;
 
 
 --Reference.
+--Commented out - not clean enough to use yet.
+/*
 --
 --Remove the categories from the citations.
 create or replace view reference_staging_view as
@@ -1294,14 +1304,15 @@ from
 ) reference_with_category
 where citation not like '#%'
 order by 1,2;
+*/
 
 
 --Site
 create or replace view site_staging_view as
---Decode, remove SITE_UCODE.  (Not needed?)
+--Decode
 select
 	row_number() over (order by site_name, site_code) site_id,
-	site_name, site_code,
+	site_name, site_code, site_ucode,
 	case
 		when site_type is null then null
 		when site_type = 'LS' then 'launch site'
@@ -1420,12 +1431,28 @@ select
 		when platform_code = 'INS' then 'INS-OPV'
 		else platform_code
 	end  platform_code,
-	--Fix case typo
 	case
+		--Recursive lookups using the SITE_UCODE.
+		when launch_site = 'NIIP-5' then 'GIK-5'
+		when launch_site = 'NIIP-53' then 'GIK-1'
+		when launch_site = 'GNIIPV' then 'GIK-1'
+		when launch_site = 'USC' then 'KASC'
+		when launch_site = 'GTsMP-4' then 'GTsP-4'
+		when launch_site = 'SDSC' then 'SHAR'
+		when launch_site = 'GIP-53' then 'GNIIP'
+		when launch_site = 'GTSP-4' then 'GTsP-4'
+		when launch_site = 'SPFL' and launch_pad = 'LC47' then 'CCA'
+		--Case.
 		when launch_site = 'Vernon' then 'VERNON'
 		else launch_site
 	end launch_site,
-	launch_pad,
+	case
+		--These look like typos
+		when launch_pad = 'LC31/ShPU-12' then 'LC31/ShPu-12'
+		when launch_pad = 'RW13     -> MFWA' then null
+		--Remove the destinations.
+		else trim(regexp_replace(launch_pad, '->.*', null))
+	end launch_pad,
 	apogee,
 	range,
 	agency_org_code_list,
@@ -1488,7 +1515,7 @@ from
 		nullif(mission, '-') mission,
 		nullif(flightcode, '-') flightcode,
 		replace(nullif(trim(platform), '-'), '?') platform_code,
-		replace(launch_site, '?') launch_site,
+		trim(replace(launch_site, '?')) launch_site,
 		replace(nullif(launch_pad, '-'), '?') launch_pad,
 		nullif(trim(apogee), '-') apogee,
 		nullif(trim(range), '-') range,
@@ -1674,7 +1701,6 @@ select * from platform_staging;
 
 select * from stage_staging;
 select * from launch_vehicle_stage_staging;
-select * from reference_staging;
 select * from site_staging;
 select * from platform_staging;
 select * from launch_staging;
@@ -2014,7 +2040,9 @@ create index launch_vehicle_stage_idx1 on launch_vehicle_stage(lv_id);
 create index launch_vehicle_stage_idx2 on launch_vehicle_stage(stage_name);
 
 
---REFERENCE
+--REFERENCE.
+--Commented out - data is not clean enough yet.
+/*
 create table reference compress as
 --Use distinct to avoid two duplicates:  "AWST960401-28" and "www.lapan.go.id".
 select distinct citation, reference, reference_category
@@ -2022,6 +2050,7 @@ from reference_staging_view
 order by 1,2;
 
 alter table reference add constraint reference_pk primary key (citation);
+*/
 
 
 --SITE
@@ -2156,50 +2185,33 @@ create index launch_idx2 on launch(site_id);
 create index launch_idx3 on launch(platform_code);
 
 
+--TODO: agency_org_code_list, payload_group, payload_investigators
+select * from launch_staging_view;
 
---drop table launch;
+select launch_id, flight_type
+from launch_staging_view
+cross join jheller.
+;
 
-select * from launch;
+
+
 
 select *
-from launch_staging_view
+from launch_reference
+where citation not in (select citation from reference);
 
+
+
+drop table launch_reference;
+select launch_id, citation
+from launch_reference
+group by launch_id, citation
+having count(*) >= 2
 ;
 
-		select site_id
-		from site
-		where site.site_name = launch_staging_view.launch_site
-			and nvl(site.site_code, 'none') = nvl(launch_staging_view.launch_pad, 'none')
-;
-
-select * from launch where site_id is null order by launch_id;
 
 
---Launches without a matched site.
-select launch.launch_tag, launch_staging_view.launch_site,
-	launch_staging_view.*, launch.*
-from launch_staging_view
-left join launch
-	on launch_staging_view.launch_id = launch.launch_id
-where launch.site_id is null
-order by launch.launch_tag;
-
-
-
-select * from site;
-
-
-
-
---TODO: LAUNCH_REFERENCE (bridge table)
-create table launch_reference compress as
---Split the codes
-select launch_id, column_value citation
-from launch_staging_view
-cross join get_nt_from_list(cite_list, '/')
-order by launch_id, citation;
-
-
+drop table launch_reference;
 
 select * from launch;
 
@@ -2228,43 +2240,11 @@ select * from launch_vehicle;
 
 
 
---TODO: LAUNCH_REFERENCE (bridge table)
-create table launch_reference compress as
---Split the codes
-select launch_id, column_value citation
-from launch_staging_view
-cross join get_nt_from_list(cite_list, '/')
-order by launch_id, citation
-;
 
 select * from reference;
 
 ;
 
-
-
-select *
-from launch_staging_view;
-
-
-select *
-from satellite_staging;
-
-
-select * from platform;
-
-
-organization_staging
-family_staging
-launch_vehicle_staging
-engine_staging
-stage_staging
-launch_vehicle_stage_staging
-reference_staging
-site_staging
-platform_staging
-launch_staging
-satellite_staging;
 
 
 
@@ -2310,4 +2290,5 @@ join launch_staging_view
 	on launch.launch_id = launch_staging_view.launch_id
 where lv_id is null;
 
+select * from launch where site_id is null order by launch_id;
 
