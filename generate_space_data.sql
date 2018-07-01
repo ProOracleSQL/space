@@ -13,6 +13,11 @@ TODO:
 6. Host those exports on different sites.
 
 
+Notes for future refreshes:
+1. You can probably remove or change this condition on SATELLITE_STAGING_VIEW: where jsr_to_date(launch_date) < date '2017-09-07'
+2. Add some fields if the are populated with more data.  For example, I excluded launch.range because it was almost empty.
+
+
 Notes of JSR issues:
 
 Orgs: LTV Electronic Systems Division is out of alignment and has a weird "b" in one column.
@@ -34,19 +39,32 @@ Stages: Should "GEM-63" be excluded, or also added to Engines?  Looks like it's 
 Stages: "Corporal Type 1" has a comman instead of a period for the length.
 Stages: Should "LS-A Booster" be "LS-A booster" to match the Engines file?  (That will make a difference to case-sensitive databases.)
 Stages: Should ANSAR (not in Orgs) be ANSAL (Ansar Allah (Houthi) Revolutionary Committee Forces)?
+LV_Stages: Should "Titan II SLV", stage F, have multiplicity of "1" instead of "F"?  It's the only non-numeric value.
+LV_Stages: There are some duplicate rows: Ariane 42L/42L/F/Ariane Fairing, Atlas V 411//F/Fairing, Minotaur IV//F/Fairing
+LV_Stages: The fairings and recovery vehicles in here don't match values in Stages.  Should these values be added to stages, or recorded separately somehow?
 Refs: "AWST960401-28" has a duplicate entry.
 Refs: "www.lapan.go.id" has a duplicate entry.
 Sites: There are two empty rows with only "#" for the site name.
 Sites: Should "NKAZ" be removed?  It's listed as the type "TGT", which I assume is target.  But that category is not listed on sites.html, and it's not used in any launch.
 Sites: These parent codes look to be typos or case differences: "BLORIG" ==> "BLOR","DDR" ==> "DD","Luna" ==> "LUNA","NRC" ==> "NRCC","OTRAG" ==> "OTRG","ROCKL" ==> "RLABN","SCALED" ==> "SCAL","Yemen" ==> "YE"
-Platforms - Is B-52H missing from the file?
-Platforms - Should "DDG 174" be "DDG-174"?  That will match launches and the platform name.
-Platforms - Shift "MiG31D-72" UCODE one character to the right, it's not aligned properly.
-Launch - all - For "2014-S19", should the Platform be "INS-OPV" instead of "INS"?  "INS" doesn't exist in platforms, but it's in the short name for "INS-OPV".
-launchcols.html - Minor typos: ifno --> if no, sucess --> success, assessements --> assessments, fo --> of, Addtional --> Additional
-launchcols.html and all - Descriptions are missing for some launch code categories.  Here are my guesses:  'H' -> 'sounding rocket', 'R' -> 'ballistic missile test', 'X' -> 'lunar return', 'Y' -> 'suborbital spaceplane'.
-launchcols.html and all- What are the launch statuses "D" and "E"?  I'm guessing something like "destroyed before launch"?
-all - Some of the payload groups look weird: "-                 MLV-1","-                 MLV-2","-                 MLV-3","-                 MLV-4","-                 MLV-5","-                 MLV-6","-                 MLV-8","-                 MLV-9","-       CYGNUS"
+Platforms: Is B-52H missing from the file?
+Platforms: Should "DDG 174" be "DDG-174"?  That will match launches and the platform name.
+Platforms: Shift "MiG31D-72" UCODE one character to the right, it's not aligned properly.
+all: For "2014-S19", should the Platform be "INS-OPV" instead of "INS"?  "INS" doesn't exist in platforms, but it's in the short name for "INS-OPV".
+launchcols.html: Minor typos: ifno --> if no, sucess --> success, assessements --> assessments, fo --> of, Addtional --> Additional
+launchcols.html and all: Descriptions are missing for some launch code categories.  Here are my guesses:  'H' -> 'sounding rocket', 'R' -> 'ballistic missile test', 'X' -> 'lunar return', 'Y' -> 'suborbital spaceplane'.
+launchcols.html and all: What are the launch statuses "D" and "E"?  I'm guessing something like "destroyed before launch"?
+all: Some of the payload groups look weird: "-                 MLV-1","-                 MLV-2","-                 MLV-3","-                 MLV-4","-                 MLV-5","-                 MLV-6","-                 MLV-8","-                 MLV-9","-       CYGNUS"
+all: The payload groups "AFSPC-X" and "NROL-X ..." are formatted differently than others.  Should "AFSPC-X" be "AFSPC/", and should "NROL-X" be "NRO/"?
+all: The variant for Falcon 9 FT does not exist in LV.  Should the "FT" be changed to "FT 3", "FT 3/4", etc?  Or should "FT" be added to LV?
+all: Should the launch "Soyuz-2-1A"/"Volga" be "Soyuz-2-1V"/"Volga"?
+all: For 2017-002, should "Kuaizhou-1A" be "Kuaizhou"?  Or should "Kuaizhou-1A" be added to LV?
+all: "Vernon" should be "VERNON" to match case of Sites.
+
+satcat.txt - S043190 and S043190 are empty.
+
+
+
 
 */
 
@@ -1054,7 +1072,8 @@ from
 		from launch_vehicle_staging
 		order by lv_name, lv_variant
 	) trim_and_project
-) convert;
+) convert
+order by lv_name;
 
 
 --Engine
@@ -1204,6 +1223,38 @@ where
 order by stage_name;
 
 
+--Launch Vehicle Stage
+create or replace view launch_vehicle_stage_stng_view as
+--Convert and decode.
+select distinct
+	lv_name,
+	lv_variant,
+	stage_no,
+	stage_name,
+	case when dummy = 'd' then 1 else 0 end is_dummy,
+	to_number(case when multiplicity = 'F' then '1' else multiplicity end) multiplicity,
+	to_number(stage_impulse) stage_impulse,
+	to_number(stage_apogee) stage_apogee,
+	to_number(stage_perigee) stage_perigee
+from
+(
+	--Project and trim.
+	select
+		lv_mnemonic lv_name,
+		nullif(lv_variant, '-') lv_variant,
+		trim(stage_no) stage_no,
+		stage_name,
+		nullif(dummy, '-') dummy,
+		trim(multiplicity) multiplicity,
+		nullif(trim(stage_impulse), '-') stage_impulse,
+		replace(trim(stage_apogee), '?') stage_apogee,
+		replace(trim(stage_perigee), '?') stage_perigee
+	from launch_vehicle_stage_staging
+	where lv_mnemonic not in ('?', 'Unknown')
+)
+order by lv_name, stage_name;
+
+
 --Reference.
 --
 --Remove the categories from the citations.
@@ -1345,25 +1396,38 @@ order by 1,2;
 --Convert and decode columns.
 create or replace view launch_staging_view as
 select
+	row_number() over (order by launch_tag) launch_id,
 	launch_tag,
-	launch_jd,
 	jsr_to_date(launch_date) launch_date,
-	lv_type,
-	variant,
+	case
+		--Fix typos.
+		when launch_tag = '2016-026' then 'Soyuz-2-1V'
+		when launch_tag = '2017-002' then 'Kuaizhou'
+		else lv_type
+	end lv_type,
+	case
+		--Weird typo or missing staging data.
+		--This is the most popular rocket, but there are so many versions.
+		when lv_type = 'Falcon 9' and variant = 'FT' then 'FT5'
+		else variant
+	end variant,
 	flight_id,
 	flight,
 	mission,
 	flightcode,
 	--Fix platform typos
 	case
-		when platform = 'INS' then 'INS-OPV'
-		else platform
-	end  platform,
-	launch_site,
+		when platform_code = 'INS' then 'INS-OPV'
+		else platform_code
+	end  platform_code,
+	--Fix case typo
+	case
+		when launch_site = 'Vernon' then 'VERNON'
+		else launch_site
+	end launch_site,
 	launch_pad,
 	apogee,
 	range,
-	dest,
 	agency_org_code_list,
 	--Split into category and status
 	case
@@ -1390,10 +1454,20 @@ select
 		else 'ERROR - Unexpected value "'||substr(launch_code, 2, 1)||'"'
 	end launch_status,
 	--Split into payload_org_list, payload_principle_investigators
-	payload_group,
-
-
-
+	case
+		when payload_group is null then null
+		when payload_group like 'AFSPC%' then 'AFSPC/'
+		when payload_group like 'NROL%' then 'NRO/'
+		--Get everything before the last slash
+		else regexp_replace(payload_group, '(.*)/(.*)', '\1')
+	end payload_group,
+	case
+		when payload_group is null then null
+		when payload_group like 'AFSPC%' then 'AFSPC/'
+		when payload_group like 'NROL%' then 'NRO/'
+		--Get everything after the last slash
+		else regexp_replace(payload_group, '(.*)/(.*)', '\2')
+	end payload_investigators,
 	category_list flight_type,
 	--Combine the citations for simplicity.
 	case
@@ -1413,12 +1487,13 @@ from
 		replace(nullif(flight, '-'), '?') flight,
 		nullif(mission, '-') mission,
 		nullif(flightcode, '-') flightcode,
-		nullif(platform, '-') platform,
-		launch_site,
+		replace(nullif(trim(platform), '-'), '?') platform_code,
+		replace(launch_site, '?') launch_site,
 		replace(nullif(launch_pad, '-'), '?') launch_pad,
 		nullif(trim(apogee), '-') apogee,
 		nullif(trim(range), '-') range,
-		nullif(dest, '-') dest,
+		--Value is not fully supported in JSR yet.
+		--replace(replace(replace(nullif(dest, '-'), '?'), '('), ')') dest,
 		replace(agency, '?') agency_org_code_list,
 		launch_code,
 		case
@@ -1431,50 +1506,100 @@ from
 		nullif(cite, '-') cite
 	from launch_staging
 	order by launch_tag
-);
+)
+--Exclude unknonw debris.
+where (flight is null or flight <> 'Entry for unknown debris')
+order by launch_id;
 
 
---TODO: NROL is not in Orgs, and their payload group isn't formatted correctly.
---TODO: AFSPC-X should be AFSPC?
-select distinct payload_group
-from launch_staging_view
-where payload_group not like '%/%'
-order by 1;
-
-select * from launch_staging_view where launch_status like 'ERROR%';
-
-
-
---Need to match launch_staging with site_staging
-select launch_site, launch_pad from launch_staging;
-select site, code, ucode from site_staging;
-
-
-select *
+--Satellite.
+--
+create or replace view satellite_staging_view as
+--Decode and convert.
+select
+	satcat,
+	case
+		when regexp_like(cospar, '^[0-9][0-9][0-9][0-9]') then regexp_replace(trim(cospar), '[A-Z]', null)
+		when regexp_like(cospar, '^[0-9][0-9] ') then
+			'19' ||
+			--Greek letter replacements.
+			replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(
+			replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(
+				--Remove number at end.
+				regexp_replace(cospar, ' [0-9]*$')
+			, 'Alpha', 'ALP')
+			, 'Beta', 'BET')
+			, 'Gamma', 'GAM')
+			, 'Delta', 'DEL')
+			, 'Epsilon', 'EPS')
+			, 'Zeta', 'ZET')
+			, 'Iota', 'IOT')
+			, 'Kappa', 'KAP')
+			, 'Lambda', 'LAM')
+			, 'Theta', 'THE')
+			, 'Mu', 'MU')
+			, 'Nu', 'NU')
+			, 'Xi', 'XI')
+			, 'Omicron', 'OMI')
+			, 'Rho', 'RHO')
+			, 'Sigma', 'SIG')
+			, 'Tau', 'TAU')
+			, 'Pi', 'PI')
+			, 'Omega', 'OME')
+			, 'Psi', 'PSI')
+			, 'Eta', 'ETA')
+			, 'Upsilon', 'UPS')
+			, 'Phi', 'PHI')
+			, 'Chi', 'CHI')
+		else cospar
+	end sat_launch_tag,
+	official_name,
+	secondary_name,
+	jsr_to_date(launch_date) launch_date,
+	current_status,
+	jsr_to_date(status_date) status_date,
+	jsr_to_date(orbit_date) orbit_date,
+	to_number(regexp_substr(numbers, '[-0-9.]+', 1, 1)) orbit_period,
+	to_number(regexp_substr(numbers, '[-0-9.]+', 1, 2)) perigee,
+	to_number(regexp_substr(numbers, '[-0-9.]+', 1, 3)) apogee,
+	to_number(regexp_substr(numbers, '[-0-9.]+', 1, 4)) inclination,
+	orbit_class_list,
+	owner_operator_org_code_list
 from
 (
-	select launch_staging.launch_tag, launch_site, launch_pad, count(*) over (partition by launch_tag) launch_count, site_staging.*
-	from
-	(
-		select
-			launch_tag,
-			replace(nullif(launch_site, '-'), '?') launch_site,
-			replace(nullif(launch_pad, '-'), '?') launch_pad
-		from launch_staging
-	) launch_staging
-	left join site_staging
-		on
-		(
-			launch_staging.launch_site = site_staging.site and
-			nvl(launch_staging.launch_pad, 'none') = nvl(site_staging.code, 'none')
-		)
+	--Project and cleanup relevant columns
+	select
+		satcat,
+		cospar,
+		replace(nullif(official_name, '-'), '?') official_name,
+		replace(nullif(secondary_name, '-'), '?') secondary_name,
+		launch_date,
+		current_status,
+		status_date,
+		orbit_date,
+		replace(replace(numbers, '-'), 'x') numbers,
+		orbit_class orbit_class_list,
+		owner_operator owner_operator_org_code_list
+	from satellite_staging
+	--Ignore some empty rows:
+	where cospar is not null
+	order by satcat
 )
-where site is null
---No duplicates.
---where launch_count >= 2
+--Ignore satellite data that is later than the latest launch data.
+where jsr_to_date(launch_date) < date '2017-09-07'
+order by satcat;
+
+
+
+
+
+
+
+--Make sure all satellites line up with a launch
+select *
+from satellite_staging_view
+where sat_launch_tag not in (select launch_tag from launch_staging_view)
 ;
-
-
 
 
 
@@ -1558,20 +1683,7 @@ select * from satellite_staging;
 
 
 --------------------------------------------------------------------------------
---#7. Validate staging data and views.
---------------------------------------------------------------------------------
-
---The validation statements are setup so that returning zero rows means success.
-begin
-	--TODO:
-	null;
-end;
-/
-
-
-
---------------------------------------------------------------------------------
---#8. Create presentation tables.
+--#7. Create presentation tables.
 --------------------------------------------------------------------------------
 
 
@@ -1655,6 +1767,7 @@ order by 1,2;
 alter table launch_vehicle add constraint launch_vehicle_pk primary key (lv_id);
 alter table launch_vehicle add constraint launch_vehicle_uj unique (lv_name, lv_variant);
 alter table launch_vehicle add constraint launch_vehicle_family_fk foreign key (lv_family_code) references launch_vehicle_family(lv_family_code);
+create index launch_vehicle_idx1 on launch_vehicle(lv_family_code);
 
 
 --LAUNCH_VEHICLE_MANUFACTURER (bridge_table)
@@ -1692,6 +1805,7 @@ order by 1,2;
 
 alter table launch_vehicle_manufacturer add constraint launch_vehicle_man_org_pk primary key (lv_id, lv_manufacturer_org_code);
 alter table launch_vehicle_manufacturer add constraint launch_vehicle_man_org_fk foreign key (lv_manufacturer_org_code) references organization(org_code);
+create index launch_vehicle_manufacturer_idx1 on launch_vehicle_manufacturer(lv_manufacturer_org_code);
 
 
 --PROPELLENT
@@ -1790,6 +1904,8 @@ order by 1,2,3;
 alter table engine_propellent add constraint engine_propellent_pk primary key (engine_id, propellent_id, oxidizer_or_fuel);
 alter table engine_propellent add constraint engine_propellent_engine_fk foreign key (engine_id) references engine(engine_id);
 alter table engine_propellent add constraint engine_propellent_prop_fk foreign key (propellent_id) references propellent(propellent_id);
+create index engine_propellent_idx1 on engine_propellent(propellent_id);
+
 
 --ENGINE_MANUFACTURER (bridge table)
 create table engine_manufacturer compress as
@@ -1807,6 +1923,7 @@ order by 1,2;
 alter table engine_manufacturer add constraint engine_manufacturer_pk primary key (engine_id, manufacturer_org_code);
 alter table engine_manufacturer add constraint engine_manufacturer_engine_fk foreign key (engine_id) references engine(engine_id);
 alter table engine_manufacturer add constraint engine_manufacturer_manuf_fk foreign key (manufacturer_org_code) references organization(org_code);
+create index engine_manufacturer_idx1 on engine_manufacturer(manufacturer_org_code);
 
 
 --STAGE
@@ -1853,6 +1970,7 @@ order by stage_name;
 
 alter table stage add constraint stage_pk primary key (stage_name);
 alter table stage add constraint stage_engine_fk foreign key (engine_id) references engine(engine_id);
+create index stage_idx1 on stage(engine_id);
 
 
 --STAGE_MANUFACTURER (bridge table)
@@ -1865,6 +1983,35 @@ order by 1,2;
 alter table stage_manufacturer add constraint stage_manufacturer_pk primary key (stage_name, manufacturer_org_code);
 alter table stage_manufacturer add constraint stage_manufacturer_stage_fk foreign key (stage_name) references stage(stage_name);
 alter table stage_manufacturer add constraint stage_manufacturer_manuf_fk foreign key (manufacturer_org_code) references organization(org_code);
+create index stage_manufacturer_idx1 on stage_manufacturer(manufacturer_org_code);
+
+
+--LAUNCH_VEHICLE_STAGE (bridge table plus other columns)
+create table launch_vehicle_stage compress as
+select
+	(
+		select lv_id
+		from launch_vehicle
+		where launch_vehicle.lv_name = launch_vehicle_stage_stng_view.lv_name
+			and nvl(launch_vehicle.lv_variant, 'none') = nvl(launch_vehicle_stage_stng_view.lv_variant, 'none')
+	) lv_id,
+	--Should I use the stage_id here instead?
+	(
+		select stage_name
+		from stage
+		where stage.stage_name = launch_vehicle_stage_stng_view.stage_name
+	) stage_name,
+	stage_no, is_dummy, multiplicity, stage_impulse, stage_apogee, stage_perigee
+from launch_vehicle_stage_stng_view
+--Ignore fairings and payloads
+where stage_no not in ('F', 'P')
+order by lv_id, stage_name;
+
+alter table launch_vehicle_stage add constraint launch_vehicle_stage_pk primary key (lv_id, stage_name, stage_no);
+alter table launch_vehicle_stage add constraint launch_vehicle_stage_fk1 foreign key (lv_id) references launch_vehicle(lv_id);
+alter table launch_vehicle_stage add constraint launch_vehicle_stage_fk2 foreign key (stage_name) references stage(stage_name);
+create index launch_vehicle_stage_idx1 on launch_vehicle_stage(lv_id);
+create index launch_vehicle_stage_idx2 on launch_vehicle_stage(stage_name);
 
 
 --REFERENCE
@@ -1898,6 +2045,7 @@ order by 1,2;
 
 alter table site add constraint site_pk primary key (site_id);
 alter table site add constraint site_organization_fk foreign key (state_org_code) references organization(org_code);
+create index site_idx on site(state_org_code);
 
 
 --SITE_ORGANIZATION (bridge table)
@@ -1947,7 +2095,160 @@ order by 1,2;
 alter table platform add constraint platform_pk primary key (platform_code);
 alter table platform add constraint platform_state_fk foreign key (platform_state_org_code) references organization(org_code);
 alter table platform add constraint platform_parent_fk foreign key (platform_parent_org_code) references organization(org_code);
+create index platform_idx1 on platform(platform_state_org_code);
+create index platform_idx2 on platform(platform_parent_org_code);
 
+
+--LAUNCH:
+create table launch compress as
+select
+	launch_id,
+	launch_tag,
+	launch_date,
+	launch_category,
+	launch_status,
+	(
+		select lv_id
+		from launch_vehicle
+		where launch_vehicle.lv_name = launch_staging_view.lv_type
+			and nvl(launch_vehicle.lv_variant, 'none') = nvl(launch_staging_view.variant, 'none')
+	) lv_id,
+	flight_id flight_id1,
+	flight flight_id2,
+	mission,
+	flightcode,
+	flight_type,
+	(
+		select site_id
+		from site
+		where site.site_name = launch_staging_view.launch_site
+			and nvl(site.site_code, 'none') = nvl(launch_staging_view.launch_pad, 'none')
+	) site_id,
+	platform_code,
+	apogee
+	--Column is not populated often enough to be worth including:
+	--range
+from launch_staging_view
+--Order by launch_category.  (I don't want Wehrmacht launches to show up first, even if they were the first.)
+order by
+	case
+		when launch_category = 'orbital'                then 1
+		when launch_category = 'deep space'             then 2
+		when launch_category = 'lunar return'           then 3
+		when launch_category = 'suborbital spaceplane'  then 4
+		when launch_category = 'suborbital rocket'      then 5
+		when launch_category = 'atmospheric rocket'     then 6
+		when launch_category = 'sounding rocket'        then 7
+		when launch_category = 'test rocket'            then 8
+		when launch_category = 'ballistic missile test' then 9
+		when launch_category = 'miltary missile'        then 10
+		else 999999
+	end,
+	launch_tag
+;
+
+alter table launch add constraint launch_pk primary key(launch_id);
+alter table launch add constraint launch_lv_fk foreign key(lv_id) references launch_vehicle(lv_id); 
+alter table launch add constraint launch_site_fk foreign key(site_id) references site(site_id);
+alter table launch add constraint launch_platform_fk foreign key(platform_code) references platform(platform_code);
+create index launch_idx1 on launch(lv_id);
+create index launch_idx2 on launch(site_id);
+create index launch_idx3 on launch(platform_code);
+
+
+
+--drop table launch;
+
+select * from launch;
+
+select *
+from launch_staging_view
+
+;
+
+		select site_id
+		from site
+		where site.site_name = launch_staging_view.launch_site
+			and nvl(site.site_code, 'none') = nvl(launch_staging_view.launch_pad, 'none')
+;
+
+select * from launch where site_id is null order by launch_id;
+
+
+--Launches without a matched site.
+select launch.launch_tag, launch_staging_view.launch_site,
+	launch_staging_view.*, launch.*
+from launch_staging_view
+left join launch
+	on launch_staging_view.launch_id = launch.launch_id
+where launch.site_id is null
+order by launch.launch_tag;
+
+
+
+select * from site;
+
+
+
+
+--TODO: LAUNCH_REFERENCE (bridge table)
+create table launch_reference compress as
+--Split the codes
+select launch_id, column_value citation
+from launch_staging_view
+cross join get_nt_from_list(cite_list, '/')
+order by launch_id, citation;
+
+
+
+select * from launch;
+
+select * from launch_staging_view where range is not null;
+
+select * from launch_staging_view where launch_category is null;
+
+
+
+
+
+
+--payload_group
+--payload_investigators
+--cite_list
+
+
+select * from site;
+
+
+
+;
+
+select * from launch_vehicle;
+
+
+
+
+--TODO: LAUNCH_REFERENCE (bridge table)
+create table launch_reference compress as
+--Split the codes
+select launch_id, column_value citation
+from launch_staging_view
+cross join get_nt_from_list(cite_list, '/')
+order by launch_id, citation
+;
+
+select * from reference;
+
+;
+
+
+
+select *
+from launch_staging_view;
+
+
+select *
+from satellite_staging;
 
 
 select * from platform;
@@ -1958,11 +2259,11 @@ family_staging
 launch_vehicle_staging
 engine_staging
 stage_staging
+launch_vehicle_stage_staging
 reference_staging
 site_staging
 platform_staging
 launch_staging
-launch_vehicle_stage_staging
 satellite_staging;
 
 
@@ -1977,26 +2278,36 @@ select * from launch_staging;
 select *
 from satellite_staging;
 
---Only 1077 that don't match - Data that is very old or very new.
---I may need to remove satellite data that is later than 2017 Sep 7.
-select *
-from satellite_staging
-where regexp_replace(trim(cospar), '[A-Z]', null) not in (select trim(launch_tag) from launch_staging);
 
-
-1975-043B
-;
-
-select * from launch_staging where launch_tag like '2018-025%';
-select * from satellite_staging where cospar like '2018-025B%';
-
-select * from launch_staging where launch_date like '%2018%';
-
-select * from launch_staging where launch_date like '2018%';
 
 select current_status, count(*)
 from satellite_staging
 group by current_status
 order by count(*) desc;
+
+
+
+
+
+
+
+
+--------------------------------------------------------------------------------
+--#8. Validate staging data and views.
+--------------------------------------------------------------------------------
+
+--The validation statements are setup so that returning zero rows means success.
+begin
+	--TODO:
+	null;
+end;
+/
+
+--Missing LV_IDs.  This should return no rows.
+select launch_staging_view.*
+from launch
+join launch_staging_view
+	on launch.launch_id = launch_staging_view.launch_id
+where lv_id is null;
 
 
