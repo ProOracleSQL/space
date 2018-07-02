@@ -4,6 +4,8 @@ This is all very experimental, do not use this yet.
 
 This file loads and transforms data from the awesome JSR Launch Vehicle Database sdb.tar.gz file into an Oracle database.
 
+The final data should use about 27.5MB.
+
 TODO:
 1. Finish loading files into _staging tables, especially the LAUNCH_STAGING.
 2. Transform _staging tables into final tables.
@@ -93,6 +95,7 @@ orrbits.html - What is "TA" orbit class?  It appears a few times in satcat.txt.
 
 create or replace directory sdb as 'C:\space\sdb.tar';
 create or replace directory sdb_sdb as 'C:\space\sdb.tar\sdb\';
+create or replace directory space_output_dir as 'C:\space';
 
 
 
@@ -803,7 +806,7 @@ organization external
 )
 reject limit unlimited
 /
-comment on table satellite_staging is 'See this website for a description of the data: http://planet4589.org/space/log/satcat.html';
+
 
 --------------------------------------------------------------------------------
 --#5. Create helper functions for conversions.
@@ -1986,12 +1989,12 @@ from site_staging_view
 order by 1,2;
 
 alter table site add constraint site_pk primary key (site_id);
-alter table site add constraint site_organization_fk foreign key (state_org_code) references organization(org_code);
+alter table site add constraint site_org_fk foreign key (state_org_code) references organization(org_code);
 create index site_idx on site(state_org_code);
 
 
---SITE_ORGANIZATION (bridge table)
-create table site_organization compress as
+--SITE_ORG (bridge table)
+create table site_org compress as
 --Fix some mistakes
 select
 	site_id,
@@ -2015,9 +2018,9 @@ from
 ) codes
 order by 1,2;
 
-alter table site_organization add constraint site_organization_pk primary key (site_id, org_code);
-alter table site_organization add constraint site_org_site_fk foreign key(site_id) references site(site_id);
-alter table site_organization add constraint site_org_org_fk foreign key(org_code) references organization(org_code);
+alter table site_org add constraint site_org_pk primary key (site_id, org_code);
+alter table site_org add constraint site_org_site_fk foreign key(site_id) references site(site_id);
+alter table site_org add constraint site_org_org_fk foreign key(org_code) references organization(org_code);
 
 
 --PLATFORM
@@ -2231,3 +2234,411 @@ select * from launch where site_id is null order by launch_id;
 
 --Do all the satellites have a valid launch_id?  (With the exception of "Unknown Oko debris".
 select * from satellite where launch_id is null;
+
+
+
+--------------------------------------------------------------------------------
+--#9. Create space table DDL.
+--------------------------------------------------------------------------------
+
+
+select *
+from dba_objects
+where owner = user
+	and object_type = 'TABLE'
+order by created desc;
+
+
+--Tables in alphabetical order:
+ENGINE
+ENGINE_MANUFACTURER
+ENGINE_PROPELLENT
+LAUNCH
+LAUNCH_AGENCY
+LAUNCH_PAYLOAD_ORG
+LAUNCH_VEHICLE
+LAUNCH_VEHICLE_FAMILY
+LAUNCH_VEHICLE_MANUFACTURER
+LAUNCH_VEHICLE_STAGE
+ORGANIZATION
+ORGANIZATION_ORG_TYPE
+PLATFORM
+PROPELLENT
+SATELLITE
+SATELLITE_ORG
+SITE
+SITE_ORG
+STAGE
+STAGE_MANUFACTURER
+
+
+--Tables in logical order:
+LAUNCH
+	LAUNCH_PAYLOAD_ORG
+	LAUNCH_AGENCY
+
+SATELLITE
+	SATELLITE_ORG
+
+ORGANIZATION
+	ORGANIZATION_ORG_TYPE
+
+PLATFORM
+
+SITE
+	SITE_ORG
+
+LAUNCH_VEHICLE
+	LAUNCH_VEHICLE_MANUFACTURER
+	LAUNCH_VEHICLE_FAMILY
+
+STAGE
+	STAGE_MANUFACTURER
+
+PROPELLENT
+
+ENGINE
+	ENGINE_MANUFACTURER
+	ENGINE_PROPELLENT
+
+LAUNCH_VEHICLE_STAGE
+
+
+;
+
+--TODO: Use _IDs for everything?
+select * from launch_vehicle_stage;
+select * from launch_agency;
+select * from launch_vehicle;
+
+select * from launch_vehicle;
+
+select * from user_tab_columns where column_name = 'ENGINE_ID';
+
+--Cleanup objects.
+declare
+	v_objects sys.odcivarchar2list;
+
+	-------------------
+	procedure drop_if_exists(p_object_name varchar2, p_object_type varchar2) is
+		v_table_view_does_not_exist exception;
+		pragma exception_init(v_table_view_does_not_exist, -942);
+	begin
+		execute immediate 'drop '||p_object_type||' '||p_object_name;
+	exception when v_table_view_does_not_exist then
+		null;
+	when others then
+		raise_application_error(-20000, 'Error with this object: '||p_object_name||chr(10)||
+			sys.dbms_utility.format_error_stack||sys.dbms_utility.format_error_backtrace);
+	end drop_if_exists;
+
+	-------------------
+	procedure drop_staging_tables is
+	begin
+		v_objects := sys.odcivarchar2list(
+			'ENGINE_STAGING', 'FAMILY_STAGING', 'LAUNCH_STAGING', 'LAUNCH_VEHICLE_STAGE_STAGING',
+			'LAUNCH_VEHICLE_STAGING', 'ORGANIZATION_STAGING', 'PLATFORM_STAGING',
+			'SATELLITE_STAGING', 'SITE_STAGING', 'STAGE_STAGING'
+		);
+
+		for i in 1 .. v_objects.count loop
+			drop_if_exists(v_objects(i), 'table');
+		end loop;
+	end;
+
+	-------------------
+	procedure drop_staging_views is
+	begin
+		v_objects := sys.odcivarchar2list(
+			'ENGINE_STAGING_VIEW', 'LAUNCH_STAGING_VIEW', 'LAUNCH_VEHICLE_STAGING_VIEW',
+			'ORGANIZATION_STAGING_VIEW', 'PLATFORM_STAGING_VIEW', 'SATELLITE_STAGING_VIEW',
+			'SITE_STAGING_VIEW', 'STAGE_STAGING_VIEW'
+		);
+
+		for i in 1 .. v_objects.count loop
+			drop_if_exists(v_objects(i), 'view');
+		end loop;
+	end;
+
+	-------------------
+	procedure drop_presentation_tables is
+	begin
+		--The order matters here.
+		v_objects := sys.odcivarchar2list(
+			'ENGINE_MANUFACTURER',
+			'ENGINE_PROPELLENT',
+			'PROPELLENT',
+			'STAGE_MANUFACTURER',
+			'LAUNCH_VEHICLE_STAGE',
+			'STAGE',
+			'ENGINE',
+			'SATELLITE_ORG',
+			'SATELLITE',
+			'LAUNCH_AGENCY',
+			'LAUNCH_PAYLOAD_ORG',
+			'LAUNCH',
+			'LAUNCH_VEHICLE_MANUFACTURER',
+			'LAUNCH_VEHICLE',
+			'LAUNCH_VEHICLE_FAMILY',
+			'SITE_ORG',
+			'SITE',
+			'ORGANIZATION_ORG_TYPE',
+			'PLATFORM',
+			'ORGANIZATION'
+		);
+
+		for i in 1 .. v_objects.count loop
+			drop_if_exists(v_objects(i), 'table');
+		end loop;
+	end;
+begin
+	--drop_staging_tables;
+	--drop_staging_views;
+	--drop_presentation_tables;
+end;
+/
+
+
+
+--Generate DDL
+
+
+select dbms_metadata.get_ddl('TABLE', 'ENGINE_MANUFACTURER') from dual;
+
+
+
+drop function get_table_md;
+
+CREATE OR REPLACE FUNCTION get_metadata(p_object_type varchar2, p_schema varchar2, p_table_name varchar2) RETURN CLOB IS
+ -- Define local variables.
+ h    NUMBER;   -- handle returned by 'OPEN'
+ th   NUMBER;   -- handle returned by 'ADD_TRANSFORM'
+ doc  CLOB;
+BEGIN
+ -- Specify the object type. 
+ h := DBMS_METADATA.OPEN(p_object_type);
+
+ -- Use filters to specify the particular object desired.
+ DBMS_METADATA.SET_FILTER(h,'SCHEMA',p_schema);
+ DBMS_METADATA.SET_FILTER(h,'NAME',p_table_name);
+
+ -- Request that the metadata be transformed into creation DDL.
+ th := dbms_metadata.add_transform(h,'DDL');
+
+ -- Don't print schema name.
+ DBMS_METADATA.SET_TRANSFORM_PARAM(th, 'EMIT_SCHEMA', false);
+
+ -- Specify that segment attributes are not to be returned.
+ -- Note that this call uses the TRANSFORM handle, not the OPEN handle.
+ DBMS_METADATA.SET_TRANSFORM_PARAM(th,'SEGMENT_ATTRIBUTES',false);
+
+ -- Fetch the object.
+ doc := DBMS_METADATA.FETCH_CLOB(h);
+
+ -- Release resources.
+ DBMS_METADATA.CLOSE(h);
+
+ RETURN doc;
+END;
+/
+
+--Create tables:
+select get_metadata('TABLE', user, 'SITE_ORG') from dual;
+
+--Create indexes, mostly on foreign keys.
+select get_metadata('INDEX', user, 'ENGINE_MANUFACTURER_IDX1') from dual;
+
+
+
+
+--Print header information at top of the file.
+
+
+--Create all tables
+space_output_dir
+;
+
+
+declare 
+	v_handle utl_file.file_type;
+begin
+  v_handle := utl_file.fopen('SPACE_OUTPUT_DIR', 'oracle_create_space.sql', 'w');
+
+  utl_file.put_line(v_handle, '-- This file creates the space schema for Oracle databases.');
+  utl_file.new_line(v_handle);
+  utl_file.put_line(v_handle, 'alter session set nls_timestamp_format = ''YYYY-MM-DD HH24MISS''');
+
+  utl_file.fclose(v_handle);
+end;
+/
+
+
+
+
+--Move all the tables, to better compress them and to shrink segments.
+declare
+	v_objects sys.odcivarchar2list;
+begin
+	v_objects := sys.odcivarchar2list
+	(
+		'ENGINE',
+		'ENGINE_MANUFACTURER',
+		'ENGINE_PROPELLENT',
+		'LAUNCH',
+		'LAUNCH_AGENCY',
+		'LAUNCH_PAYLOAD_ORG',
+		'LAUNCH_VEHICLE',
+		'LAUNCH_VEHICLE_FAMILY',
+		'LAUNCH_VEHICLE_MANUFACTURER',
+		'LAUNCH_VEHICLE_STAGE',
+		'ORGANIZATION',
+		'ORGANIZATION_ORG_TYPE',
+		'PLATFORM',
+		'PROPELLENT',
+		'SATELLITE',
+		'SATELLITE_ORG',
+		'SITE',
+		'SITE_ORG',
+		'STAGE',
+		'STAGE_MANUFACTURER'
+	);
+
+	for i in 1 .. v_objects.count loop
+		execute immediate 'alter table '||v_objects(i)||' move';
+	end loop;
+
+	--Rebuild all indexes, which would be unusable after table moves.
+	for i in 1 .. v_objects.count loop
+		for indexes_to_rebuild in
+		(
+			select 'alter index '||owner||'.'||index_name||' rebuild' v_sql
+			from all_indexes
+			where table_name = v_objects(i)
+			order by v_sql
+		) loop
+			execute immediate indexes_to_rebuild.v_sql;
+		end loop;
+	end loop;
+end;
+/
+
+
+
+
+
+
+--Create INSERT statements.
+declare
+	v_objects sys.odcivarchar2list;
+begin
+	--The order matters here.
+	v_objects := sys.odcivarchar2list
+	(
+		'ENGINE_MANUFACTURER',
+		'ENGINE_PROPELLENT',
+		'PROPELLENT',
+		'STAGE_MANUFACTURER',
+		'LAUNCH_VEHICLE_STAGE',
+		'STAGE',
+		'ENGINE',
+		'SATELLITE_ORG',
+		'SATELLITE',
+		'LAUNCH_AGENCY',
+		'LAUNCH_PAYLOAD_ORG',
+		'LAUNCH',
+		'LAUNCH_VEHICLE_MANUFACTURER',
+		'LAUNCH_VEHICLE',
+		'LAUNCH_VEHICLE_FAMILY',
+		'SITE_ORG',
+		'SITE',
+		'ORGANIZATION_ORG_TYPE',
+		'PLATFORM',
+		'ORGANIZATION'
+	);
+
+
+	--Create SELECT statements for each table.
+	for i in 1 .. v_objects.count loop
+		--INSERT statement.
+
+		--Create SELECT statement that will generate another SELECT statement.
+		select
+			'select ''select ''||' ||
+			listagg
+			(
+				case
+					when data_type = 'VARCHAR2' then 'get_formatted_string('||column_name||')'
+					when data_type = 'NUMBER' then 'to_char('||column_name||')'
+					when data_type = 'DATE' then 'get_formatted_date('||column_name||')'
+				end,
+				'||'',''||'
+			) within group (order by column_id) || '||'' from dual''' || chr(10) ||
+				' from ' || table_name || ' order by 1'
+			select_sql
+		from user_tab_columns
+		where table_name = 'ORGANIZATION'
+		group by table_name;
+
+
+	end loop;
+end;
+/
+
+
+--Create SELECT statement that will generate another SELECT statement.
+select
+	'select ''select ''||' ||
+	listagg
+	(
+		case
+			when data_type = 'VARCHAR2' then 'get_formatted_string('||column_name||')'
+			when data_type = 'NUMBER' then 'to_char('||column_name||')'
+			when data_type = 'DATE' then 'get_formatted_date('||column_name||')'
+		end,
+		'||'',''||'
+	) within group (order by column_id) || '||'' from dual''' || chr(10) ||
+		' from ' || table_name || ' order by 1'
+	select_sql
+from user_tab_columns
+where table_name = 'ORGANIZATION'
+group by table_name;
+
+
+
+
+select 'select '||get_formatted_string(ORG_CODE)||','||get_formatted_string(ORG_NAME)||','||get_formatted_string(ORG_CLASS)||','||get_formatted_string(PARENT_ORG_CODE)||','||get_formatted_string(ORG_STATE_CODE)||','||get_formatted_string(ORG_LOCATION)||','||get_formatted_date(ORG_START_DATE)||','||get_formatted_date(ORG_STOP_DATE)||','||get_formatted_string(ORG_UTF8_NAME)||' from dual'
+ from ORGANIZATION order by 1
+;
+
+select '10ADS','USAF Aerospace Defence Command, 10th Aerospace Defence Sqn.','defense','AFADC','US','Vandenberg AFB, California','1966-01-01 00:00:00','','USAF Aerospace Defence Command, 10th Aerospace Defence Sqn.' from dual;
+;
+select
+	'select '||
+	get_formatted_string(org_code)||','||
+	get_formatted_date(org_start_date)
+	||' from dual'
+from organization
+order by 1;
+
+
+create or replace function get_formatted_string(p_string varchar2) return varchar2 is
+begin
+	return '''' || replace(p_string, '''', '''''') || '''';
+end;
+/
+create or replace function get_formatted_date(p_date date) return string is
+begin
+	return '''' || to_char(p_date, 'YYYY-MM-DD hh24:mi:ss') || '''';
+end;
+/
+
+
+select
+	'select '||
+	get_formatted_string(org_code)||','||
+	get_formatted_date(org_start_date)
+	||' from dual'
+from organization
+
+
+
