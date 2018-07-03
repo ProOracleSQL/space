@@ -2278,7 +2278,6 @@ select get_metadata('INDEX', user, 'ENGINE_MANUFACTURER_IDX1') from dual;
 
 
 
-
 --Print header information at top of the file.
 
 
@@ -2287,6 +2286,10 @@ begin
 	space_exporter.generate_oracle_file;
 end;
 /
+
+
+
+
 
 
 

@@ -36,7 +36,8 @@ g_ordered_objects constant sys.odcivarchar2list := sys.odcivarchar2list
 );
 
 
---------------------------------------------------------------------------------
+--==============================================================================
+--==============================================================================
 procedure drop_objects(p_type varchar2) is
 	v_objects sys.odcivarchar2list;
 
@@ -110,7 +111,8 @@ end;
 
 
 
---------------------------------------------------------------------------------
+--==============================================================================
+--==============================================================================
 procedure generate_oracle_file is
 
 
@@ -158,10 +160,6 @@ procedure generate_oracle_file is
 	---------------------------------------
 	procedure write_header is
 		v_handle utl_file.file_type;
-		v_string varchar2(32767) := q'[
-
-
-		]';
 	begin
 		v_handle := utl_file.fopen('SPACE_OUTPUT_DIR', 'oracle_create_space.sql', 'w');
 		utl_file.put_line(v_handle, replace(substr(
@@ -169,8 +167,8 @@ procedure generate_oracle_file is
 				-- This file creates the space schema for Oracle databases.');
 				-- DO NOT MODIFY THIS FILE.  It is automatically generated.');
 
-				-- #1: Session settings.
-				alter session set nls_timestamp_format = 'YYYY-MM-DD HH24MISS';
+				-- Session settings.
+				alter session set nls_date_format = 'YYYY-MM-DD HH24:MI:SS';
 				]'
 		, 2)
 		, '				'));
@@ -178,27 +176,95 @@ procedure generate_oracle_file is
 		  utl_file.fclose(v_handle);
 	end write_header;
 
+
 	---------------------------------------
-	procedure write_metadata is
+	procedure write_metadata_and_data is
 		v_handle utl_file.file_type;
-		v_clob clob;
+		v_metadata varchar2(32767);
+		v_select varchar2(32767);
+		type string_table is table of varchar2(32767);
+		v_rows string_table;
+		v_union_all varchar2(32767);
 	begin
 		v_handle := utl_file.fopen('SPACE_OUTPUT_DIR', 'oracle_create_space.sql', 'a');
 
-		for i in 1 .. g_ordered_objects.count loop
-			v_clob := get_metadata('TABLE', user, g_ordered_objects(i)) || ';';
-			utl_file.put_line(v_handle, v_clob);
+		--Tables:
+		for i in 1 .. 2 /*g_ordered_objects.count*/ loop
+			--Table header:
+			utl_file.new_line(v_handle);
+			utl_file.new_line(v_handle);
+			utl_file.put_line(v_handle, '--------------------------------------------------------------------------------');
+			utl_file.put_line(v_handle, '-- '||g_ordered_objects(i));
+			utl_file.put_line(v_handle, '--------------------------------------------------------------------------------');
+
+			--Metadata:
+			v_metadata := get_metadata('TABLE', user, g_ordered_objects(i)) || ';';
+			utl_file.put_line(v_handle, replace(v_metadata, chr(10)||'  ', chr(10)));
+			utl_file.new_line(v_handle);
+
+			--Data:
+			--Create SELECT statement that will generate another SELECT statement.
+			select
+				'select ''select ''||' ||
+				listagg
+				(
+					case
+						when data_type = 'VARCHAR2' then 'get_formatted_string('||column_name||')'
+						when data_type = 'NUMBER' then 'to_char('||column_name||')'
+						when data_type = 'DATE' then 'get_formatted_date('||column_name||')'
+					end,
+					'||'',''||'
+				) within group (order by column_id) || '||'' from dual''' || chr(10) ||
+					' from ' || table_name || ' order by 1'
+				select_sql
+			into v_select
+			from user_tab_columns
+			where table_name = g_ordered_objects(i)
+			group by table_name;
+
+			--Run the select and get all the data.
+			execute immediate v_select
+			bulk collect into v_rows;
+
+			--Create the INSERTs.
+
+			for j in 1 .. v_rows.count loop
+				--Always start with an INSERT.
+				if j = 1 then
+					utl_file.put_line(v_handle, 'insert into '||g_ordered_objects(i));
+				end if;
+
+				--Add rows to UNION ALL.
+				v_union_all := v_union_all || v_rows(j) || ' union all' || chr(10);
+
+				--Package the rows 100 at a time, or for the last row.
+				if j = v_rows.count or remainder(j, 100) = 0 then
+					--Print the 100 rows and reset.  (Don't print the last " union all".)
+					utl_file.put_line(v_handle, substr(v_union_all, 1, length(v_union_all) - 11) || ';');
+					v_union_all := null;
+
+					--Print another INSERT, unless it's the last row.
+					if j <> v_rows.count then
+						utl_file.put_line(v_handle, 'insert into '||g_ordered_objects(i));
+					end if;
+				end if;
+			end loop;
+
 		end loop;
 
+		--Indexes:
+		--TODO
 
 		utl_file.fclose(v_handle);
-	end write_metadata;
+	end write_metadata_and_data;
+
 
 	---------------------------------------
-	procedure write_data is
+	procedure write_move_and_rebuild is
 	begin
 		null;
-	end write_data;
+	end;
+
 
 	---------------------------------------
 	procedure write_footer is
@@ -208,8 +274,8 @@ procedure generate_oracle_file is
 
 begin
 	write_header;
-	write_metadata;
-	write_data;
+	write_metadata_and_data;
+	write_move_and_rebuild;
 	write_footer;
 end;
 
