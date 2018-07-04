@@ -1,9 +1,16 @@
-Space v0.0.1
-============
+SpaceDB v1.0.0
+==============
 
-This reopsitory contains the schema used in the book Pro Oracle SQL Development.
+SpaceDB is a data set that contains all orbital and suborbital launches, all satellites, and related information.  It's based on data from the JSR Launch Vehicle Database, 2017 Dec 28 Edition.
 
-THIS IS STILL EXPERIMENTAL!  This probably won't be usable until sometime in July 2018.
+The goals of SpaceDB are to provide a data set that is:
+
+1. **Simple** - The data can be easily loaded into an Oracle database.  And it can be easily understood.  There are 20 tables but almost all of the tables and columns are obvious and do not require a lot of domain knowledge.
+2. **Small** - The entire data set can be downloaded in 3 megabyte zip file.  You can install this on almost any system without going over your disk quota.
+3. **Interesting** - I assume that most people who use a database have at least some appreciation for space flight.
+4. **Real** - The data is not an imaginary.  If you spend time querying this data you will also learn something about the real world.
+
+This data set will be used in my upcoming book, Pro Oracle SQL Development.  I'm tired of every SQL example using `EMPLOYEES` or `PARTS`.
 
 
 Examples
@@ -20,20 +27,21 @@ Count the number of launches per category:
 How to Install
 --------------
 
-If you cannot use an existing schema, create a separate schema to contain the database.
+1. Download and unzip oracle_create_space.zip.
+2. CD into the directory with that file.
+3. Start SQL*Plus as a user who can either create another schema or load tables and data into their own schema.
+4. Either use your existing schema, or create a new one like this:
 
-For example:
+	SQL> create user space identified by "enterPasswordHere#1" quota unlimited on users;
 
-	create user space identified by "enterAPasswordHere" quota unlimited on users;
+5. Run these commands to install the tables and data.  It should only take a minute.
 
-Download the file oracle_create_space.sql, CD to the directory with that file, start SQL*Plus, and run these commands:
-
-	> alter session set current_schema = <whichever schema you want>;
-	> @oracle_create_space.sql
+	SQL> alter session set current_schema = space;
+	SQL> @oracle_create_space.sql
 
 
-Schema Diagram
---------------
+Schema Description
+------------------
 
 TODO.
 
@@ -73,4 +81,4 @@ For now, here's a simple text description of the tables, roughly ordered by thei
 License
 -------
 
-This sample database is licensed under the LGPLv3.
+This data set and the code to load it are licensed under the LGPLv3.

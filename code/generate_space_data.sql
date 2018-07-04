@@ -1,19 +1,10 @@
 /*
 
-This is all very experimental, do not use this yet.
+This semi-automated worksheet can be used to generate the .SQL file.
 
 This file loads and transforms data from the awesome JSR Launch Vehicle Database sdb.tar.gz file into an Oracle database.
 
 The final data should use about 27.5MB.
-
-TODO:
-1. Finish loading files into _staging tables, especially the LAUNCH_STAGING.
-2. Transform _staging tables into final tables.
-3. Verify data integrity, maybe cleanup tables.
-4. Create final presentation tables.
-5. Create exports of presentation tables into easy-to-load scripts.
-6. Host those exports on different sites.
-7. What is "TA" orbit class?
 
 
 Notes for future refreshes:
@@ -21,9 +12,10 @@ Notes for future refreshes:
 2. Add some fields if the are populated with more data.  For example, I excluded launch.range because it was almost empty.
 3. References were excluded, they are too messy.
 4. Payload investigator names are not included.
+5. TODO: Should I use _IDs for everything?  Or keep some natural keys?
 
 
-Notes of JSR issues:
+JSR issues:
 
 Orgs: LTV Electronic Systems Division is out of alignment and has a weird "b" in one column.
 Orgs: Thales Alenia Space/Cannes (TAS-F) is the only one in ORG_CLASS "F".  Should it be "B" for business instead?
@@ -688,7 +680,6 @@ reject limit unlimited
 /
 
 --WARNING: Had to change the filename to "all", and change "group" to "payload_group", change skip to 0, and had to add FlightCode.
---TODO: There are some problems with the fields at the end.
 create table launch_staging
 (
 	Launch_Tag varchar2(15),
@@ -1683,8 +1674,7 @@ join
 	on organization_staging_view.org_type = org_types.org_type_list
 order by 1,2;
 
-create unique index organization_org_type_idx on organization_org_type(org_code, org_type) compress 1;
-alter table organization_org_type add constraint organization_org_fk foreign key (org_code) references organization(org_code);
+alter table organization_org_type add constraint organization_org_type_pk primary key(org_code, org_type) compress 1;
 
 
 --LAUNCH_VEHICLE_FAMILY
@@ -1707,7 +1697,7 @@ from launch_vehicle_staging_view
 order by 1,2;
 
 alter table launch_vehicle add constraint launch_vehicle_pk primary key (lv_id);
-alter table launch_vehicle add constraint launch_vehicle_uj unique (lv_name, lv_variant);
+alter table launch_vehicle add constraint launch_vehicle_uq unique (lv_name, lv_variant);
 alter table launch_vehicle add constraint launch_vehicle_family_fk foreign key (lv_family_code) references launch_vehicle_family(lv_family_code);
 create index launch_vehicle_idx1 on launch_vehicle(lv_family_code);
 
@@ -1772,7 +1762,7 @@ from
 order by propellent_name;
 
 alter table propellent add constraint propellent_pk primary key (propellent_id);
-alter table propellent add constraint propellent_uk unique (propellent_name);
+alter table propellent add constraint propellent_uq unique (propellent_name);
 
 
 --ENGINE
@@ -2241,222 +2231,31 @@ select * from satellite where launch_id is null;
 --#9. Create space table DDL.
 --------------------------------------------------------------------------------
 
-select launch_category, count(*)
-from launch
-group by launch_category
-order by count(*) desc;
-
---TODO: Use _IDs for everything?
-select * from launch_vehicle_stage;
-select * from launch_agency;
-select * from launch_vehicle;
-
-select * from launch_vehicle;
-
-select * from user_tab_columns where column_name = 'ENGINE_ID';
-
-
-
-
-
---Generate DDL
-
-
-select dbms_metadata.get_ddl('TABLE', 'ENGINE_MANUFACTURER') from dual;
-
-
-
-drop function get_table_md;
-
-
-
---Create tables:
-select get_metadata('TABLE', user, 'SITE_ORG') from dual;
-
---Create indexes, mostly on foreign keys.
-select get_metadata('INDEX', user, 'ENGINE_MANUFACTURER_IDX1') from dual;
-
-
-
---Print header information at top of the file.
-
-
---Takes 20 seconds for metadata.
+--Takes about 30 seconds to generate the 25MB file.
+--After generating the file, make sure to also upload a .zip of it.
 begin
 	space_exporter.generate_oracle_file;
 end;
 /
 
+--Commands for quickly testing the file:
+/*
+drop user space cascade;
+create user space identified by "enterAPasswordHere" quota unlimited on users;
+alter session set current_schema=space;
+@oracle_create_space.sql
+*/
 
+--Check size.
+select sum(bytes)/1024/1024 from dba_segments where owner = 'SPACE';
 
+--Quickly test some queries:
+select launch_category, count(*)
+from space.launch
+group by launch_category
+order by count(*) desc;
 
-
-
-
---Move all the tables, to better compress them and to shrink segments.
-declare
-	v_objects sys.odcivarchar2list;
-begin
-	v_objects := sys.odcivarchar2list
-	(
-		'ENGINE',
-		'ENGINE_MANUFACTURER',
-		'ENGINE_PROPELLENT',
-		'LAUNCH',
-		'LAUNCH_AGENCY',
-		'LAUNCH_PAYLOAD_ORG',
-		'LAUNCH_VEHICLE',
-		'LAUNCH_VEHICLE_FAMILY',
-		'LAUNCH_VEHICLE_MANUFACTURER',
-		'LAUNCH_VEHICLE_STAGE',
-		'ORGANIZATION',
-		'ORGANIZATION_ORG_TYPE',
-		'PLATFORM',
-		'PROPELLENT',
-		'SATELLITE',
-		'SATELLITE_ORG',
-		'SITE',
-		'SITE_ORG',
-		'STAGE',
-		'STAGE_MANUFACTURER'
-	);
-
-	for i in 1 .. v_objects.count loop
-		execute immediate 'alter table '||v_objects(i)||' move';
-	end loop;
-
-	--Rebuild all indexes, which would be unusable after table moves.
-	for i in 1 .. v_objects.count loop
-		for indexes_to_rebuild in
-		(
-			select 'alter index '||owner||'.'||index_name||' rebuild' v_sql
-			from all_indexes
-			where table_name = v_objects(i)
-			order by v_sql
-		) loop
-			execute immediate indexes_to_rebuild.v_sql;
-		end loop;
-	end loop;
-end;
-/
-
-
-
-
-
-
---Create INSERT statements.
-declare
-	v_objects sys.odcivarchar2list;
-begin
-	--The order matters here.
-	v_objects := sys.odcivarchar2list
-	(
-		'ENGINE_MANUFACTURER',
-		'ENGINE_PROPELLENT',
-		'PROPELLENT',
-		'STAGE_MANUFACTURER',
-		'LAUNCH_VEHICLE_STAGE',
-		'STAGE',
-		'ENGINE',
-		'SATELLITE_ORG',
-		'SATELLITE',
-		'LAUNCH_AGENCY',
-		'LAUNCH_PAYLOAD_ORG',
-		'LAUNCH',
-		'LAUNCH_VEHICLE_MANUFACTURER',
-		'LAUNCH_VEHICLE',
-		'LAUNCH_VEHICLE_FAMILY',
-		'SITE_ORG',
-		'SITE',
-		'ORGANIZATION_ORG_TYPE',
-		'PLATFORM',
-		'ORGANIZATION'
-	);
-
-
-	--Create SELECT statements for each table.
-	for i in 1 .. v_objects.count loop
-		--INSERT statement.
-
-		--Create SELECT statement that will generate another SELECT statement.
-		select
-			'select ''select ''||' ||
-			listagg
-			(
-				case
-					when data_type = 'VARCHAR2' then 'get_formatted_string('||column_name||')'
-					when data_type = 'NUMBER' then 'to_char('||column_name||')'
-					when data_type = 'DATE' then 'get_formatted_date('||column_name||')'
-				end,
-				'||'',''||'
-			) within group (order by column_id) || '||'' from dual''' || chr(10) ||
-				' from ' || table_name || ' order by 1'
-			select_sql
-		from user_tab_columns
-		where table_name = 'ORGANIZATION'
-		group by table_name;
-
-
-	end loop;
-end;
-/
-
-
---Create SELECT statement that will generate another SELECT statement.
-select
-	'select ''select ''||' ||
-	listagg
-	(
-		case
-			when data_type = 'VARCHAR2' then 'get_formatted_string('||column_name||')'
-			when data_type = 'NUMBER' then 'to_char('||column_name||')'
-			when data_type = 'DATE' then 'get_formatted_date('||column_name||')'
-		end,
-		'||'',''||'
-	) within group (order by column_id) || '||'' from dual''' || chr(10) ||
-		' from ' || table_name || ' order by 1'
-	select_sql
-from user_tab_columns
-where table_name = 'ORGANIZATION'
-group by table_name;
-
-
-
-
-select 'select '||get_formatted_string(ORG_CODE)||','||get_formatted_string(ORG_NAME)||','||get_formatted_string(ORG_CLASS)||','||get_formatted_string(PARENT_ORG_CODE)||','||get_formatted_string(ORG_STATE_CODE)||','||get_formatted_string(ORG_LOCATION)||','||get_formatted_date(ORG_START_DATE)||','||get_formatted_date(ORG_STOP_DATE)||','||get_formatted_string(ORG_UTF8_NAME)||' from dual'
- from ORGANIZATION order by 1
-;
-
-select '10ADS','USAF Aerospace Defence Command, 10th Aerospace Defence Sqn.','defense','AFADC','US','Vandenberg AFB, California','1966-01-01 00:00:00','','USAF Aerospace Defence Command, 10th Aerospace Defence Sqn.' from dual;
-;
-select
-	'select '||
-	get_formatted_string(org_code)||','||
-	get_formatted_date(org_start_date)
-	||' from dual'
-from organization
-order by 1;
-
-
-create or replace function get_formatted_string(p_string varchar2) return varchar2 is
-begin
-	return '''' || replace(p_string, '''', '''''') || '''';
-end;
-/
-create or replace function get_formatted_date(p_date date) return string is
-begin
-	return '''' || to_char(p_date, 'YYYY-MM-DD hh24:mi:ss') || '''';
-end;
-/
-
-
-select
-	'select '||
-	get_formatted_string(org_code)||','||
-	get_formatted_date(org_start_date)
-	||' from dual'
-from organization
-
-
-
+select current_status, count(*)
+from space.satellite
+group by current_status
+order by count(*) desc;
