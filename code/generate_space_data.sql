@@ -2124,8 +2124,9 @@ alter table launch_payload_org add constraint launch_payload_org_org_fk foreign 
 --Satellite
 create table satellite compress as
 select
-	--Remote S to make it a real norad satellite catalog identifier.
-	norad,
+	--Removed "S" to make it a real norad satellite catalog identifier.
+	rownum satellite_id,
+	norad norad_id,
 	cospar,
 	official_name,
 	secondary_name,
@@ -2177,7 +2178,7 @@ select
 from satellite_staging_view
 order by norad;
 
-alter table satellite add constraint satellite_pk primary key (norad);
+alter table satellite add constraint satellite_pk primary key (satellite_id);
 alter table satellite add constraint satellite_fk foreign key(launch_id) references launch(launch_id);
 create index satellite_idx1 on satellite(launch_id);
 
@@ -2185,18 +2186,20 @@ create index satellite_idx1 on satellite(launch_id);
 --SATELLITE_ORG
 create table satellite_org compress as
 select distinct
-	norad,
+	satellite_id,
 	case
 		when column_value = 'COMDE' then 'COMDEV'
 		when column_value = 'SURRE' then 'SURREY'
 		else column_value
 	end owner_operator_org_code
-from satellite_staging_view
+from satellite
+join satellite_staging_view
+	on satellite.norad_id = satellite_staging_view.norad
 cross join get_nt_from_list(owner_operator_org_code_list, '/')
-order by norad, owner_operator_org_code;
+order by satellite_id, owner_operator_org_code;
 
-alter table satellite_org add constraint satellite_org_pk primary key(norad, owner_operator_org_code);
-alter table satellite_org add constraint satellite_org_sat_fk foreign key(norad) references satellite(norad);
+alter table satellite_org add constraint satellite_org_pk primary key(satellite_id, owner_operator_org_code);
+alter table satellite_org add constraint satellite_org_sat_fk foreign key(satellite_id) references satellite(satellite_id);
 alter table satellite_org add constraint satellite_org_org_fk foreign key(owner_operator_org_code) references organization(org_code);
 
 

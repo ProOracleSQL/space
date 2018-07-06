@@ -1,4 +1,4 @@
-SpaceDB v1.0.0
+SpaceDB v1.0.1
 ==============
 
 SpaceDB is a data set that contains all orbital and suborbital launches, all satellites, and related information.  It's based on data from the JSR Launch Vehicle Database, 2017 Dec 28 Edition.
@@ -27,7 +27,7 @@ Count the number of launches per category:
 How to Install
 --------------
 
-1. Download and unzip oracle_create_space.zip.
+1. Download and unzip oracle_create_space.sql.zip.
 2. CD into the directory with that file.
 3. Start SQL*Plus as a user who can either create another schema or load tables and data into their own schema.
 4. Either use your existing schema, or create a new one like this:
