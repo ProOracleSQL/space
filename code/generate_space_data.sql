@@ -1043,15 +1043,15 @@ from
 		lv_alias,
 		to_number(min_stage) min_stage,
 		to_number(max_stage) max_stage,
-		nullif(replace(length, '?'), '-') length,
-		nullif(replace(diameter, '?'), '-') diameter,
-		nullif(replace(launch_mass, '?'), '-') launch_mass,
-		nullif(replace(leo_capacity, '?'), '-') leo_capacity,
-		nullif(replace(gto_capacity, '?'), '-') gto_capacity,
-		nullif(replace(take_off_thrust, '?'), '-') take_off_thrust,
+		to_number(nullif(replace(length, '?'), '-')) length,
+		to_number(nullif(replace(diameter, '?'), '-')) diameter,
+		to_number(nullif(replace(launch_mass, '?'), '-')) launch_mass,
+		to_number(nullif(replace(leo_capacity, '?'), '-')) leo_capacity,
+		to_number(nullif(replace(gto_capacity, '?'), '-')) gto_capacity,
+		to_number(nullif(replace(take_off_thrust, '?'), '-')) take_off_thrust,
 		lv_class,
-		nullif(replace(apogee, '?'), '-') apogee,
-		nullif(replace(range, '?'), '-') range
+		to_number(nullif(replace(apogee, '?'), '-')) apogee,
+		to_number(nullif(replace(range, '?'), '-')) range
 	from
 	(
 		--Trim and project relevant columns.
@@ -1449,8 +1449,7 @@ select
 		--Remove the destinations.
 		else trim(regexp_replace(launch_pad, '->.*', null))
 	end launch_pad,
-	apogee,
-	range,
+	to_number(apogee) apogee,
 	agency_org_code_list,
 	--Split into category and status
 	case
@@ -1514,7 +1513,8 @@ from
 		trim(replace(launch_site, '?')) launch_site,
 		replace(nullif(launch_pad, '-'), '?') launch_pad,
 		nullif(trim(apogee), '-') apogee,
-		nullif(trim(range), '-') range,
+		--Column is not populated often enough to be worth including:
+		--nullif(trim(range), '-') range,
 		--Value is not fully supported in JSR yet.
 		--replace(replace(replace(nullif(dest, '-'), '?'), '('), ')') dest,
 		replace(agency, '?') agency_org_code_list,
@@ -2061,8 +2061,6 @@ select
 	) site_id,
 	platform_code,
 	apogee
-	--Column is not populated often enough to be worth including:
-	--range
 from launch_staging_view
 --Order by launch_category.  (I don't want Wehrmacht launches to show up first, even if they were the first.)
 order by

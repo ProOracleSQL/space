@@ -1,7 +1,7 @@
 create or replace package space_exporter is
 	--Drop objects used for the data load.
 	--P_TYPE can be one of "staging tables", "staging view", "presentation tables", or "all".
-	procedure drop_objects(p_type varchar2);
+	procedure drop_objects(p_type varchar2 default 'all');
 
 	procedure generate_oracle_file;
 
@@ -76,7 +76,7 @@ end;
 
 --==============================================================================
 --==============================================================================
-procedure drop_objects(p_type varchar2) is
+procedure drop_objects(p_type varchar2 default 'all') is
 	v_objects sys.odcivarchar2list;
 
 	-------------------
