@@ -71,13 +71,14 @@ orrbits.html - What is "TA" orbit class?  It appears a few times in satcat.txt.
 
 
 --------------------------------------------------------------------------------
---#1: Manually download data.
+--#1: Manually download data and install other objects.
 --------------------------------------------------------------------------------
 
 --#0A: Download and unzip this file in C:\space: http://www.planet4589.org/space/lvdb/sdb.tar.gz
 
 --#0B: Download this file and put it in C:\space\sdb.tar: http://planet4589.org/space/log/satcat.txt
 
+--#0C: Install this file: https://raw.githubusercontent.com/VentechCMS/utilities/master/data_dump.sql
 
 
 --------------------------------------------------------------------------------
@@ -2232,10 +2233,12 @@ select * from satellite where launch_id is null;
 --#9. Create space table DDL.
 --------------------------------------------------------------------------------
 
---Takes about 30 seconds to generate the 25MB file.
---After generating the file, make sure to also upload a .zip of it.
+--Takes about 40 seconds to generate the 25MB file and the CSV files.  Then:
+--1: Create oracle_create_space.sql.zip from oracle_create_space.sql.
+--2: Create csv_files.zip from the .CSV files.
 begin
 	space_exporter.generate_oracle_file;
+	space_exporter.generate_csv_files;
 end;
 /
 

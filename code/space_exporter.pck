@@ -4,6 +4,7 @@ create or replace package space_exporter is
 	procedure drop_objects(p_type varchar2 default 'all');
 
 	procedure generate_oracle_file;
+	procedure generate_csv_files;
 
 	function get_formatted_string(p_string varchar2) return varchar2;
 	function get_formatted_date(p_date date) return varchar2;
@@ -450,6 +451,29 @@ begin
 	write_metadata_and_data;
 	write_move_and_rebuild;
 	write_footer;
+end;
+
+
+--==============================================================================
+--==============================================================================
+procedure generate_csv_files is
+begin
+	for i in 1 .. g_ordered_objects.count loop
+		begin
+			data_dump
+			(
+				query_in        => 'select * from ' || g_ordered_objects(i) || ' order by 1,2',
+				file_in         => g_ordered_objects(i) || '.csv',
+				directory_in    => 'space_output_dir',
+				nls_date_fmt_in => 'YYYY-MM-DD HH24:MI:SS',
+				delimiter_in    => ',',
+				header_row_in   => true
+			);
+		exception when others then
+			raise_application_error(-20000, 'Problems with '||g_ordered_objects(i)||'.'||chr(10)||
+				sys.dbms_utility.format_error_stack||sys.dbms_utility.format_error_backtrace);
+		end;
+	end loop;
 end;
 
 end;
