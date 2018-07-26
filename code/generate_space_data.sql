@@ -1740,7 +1740,7 @@ order by 1,2;
 alter table launch_vehicle_manufacturer add constraint launch_vehicle_man_org_pk primary key (lv_id, lv_manufacturer_org_code);
 alter table launch_vehicle_manufacturer add constraint launch_vehicle_man_org_fk1 foreign key (lv_manufacturer_org_code) references organization(org_code);
 alter table launch_vehicle_manufacturer add constraint launch_vehicle_man_org_fk2 foreign key (lv_id) references launch_vehicle(lv_id);
-create index launch_vehicle_manufacturer_idx1 on launch_vehicle_manufacturer(lv_manufacturer_org_code);
+create index launch_vehicle_manufact_idx1 on launch_vehicle_manufacturer(lv_manufacturer_org_code);
 
 
 --PROPELLENT
