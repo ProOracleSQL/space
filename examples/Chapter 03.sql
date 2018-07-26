@@ -157,11 +157,56 @@ order by 1,2,3;
 -- 3.3.2
 ---------------------------------------------------------------------------
 
---How many data dictionary objects are there?
+--How many dynamic performance views are there?
 select distinct regexp_replace(table_name, '^G')
 from dictionary
 where regexp_like(table_name, '^G?V\$')
 order by 1;
+
+
+
+---------------------------------------------------------------------------
+-- 3.3.3
+---------------------------------------------------------------------------
+
+--Query
+select
+	vsize(0) zero_size,
+	vsize(1) one_size,
+	vsize(10) ten_size,
+	vsize(date '2000-01-01') date_size,
+	vsize(cast('a' as varchar2(4000))) string_size
+from dual;
+
+
+--Create suspicious data.
+create table random_links(url varchar2(15));
+insert into random_links values('go' || unistr('\00f6') || 'gle.com');
+commit;
+
+--Query data.  Depending on your IDE, it may look like a regular google.com.
+select * from random_links;
+
+--Look at the details.
+select dump(url) from random_links;
+
+
+
+--Setup for getting metadata.
+set long 1000
+set pagesize 1000
+
+--Query for getting metadata.
+select dbms_metadata.get_ddl(
+	object_type => 'TABLE',
+	name        => 'LAUNCH',
+	schema      => 'SPACE') ddl
+from dual;
+
+
+
+
+
 
 
 
