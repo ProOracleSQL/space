@@ -1676,6 +1676,7 @@ join
 order by 1,2;
 
 alter table organization_org_type add constraint organization_org_type_pk primary key(org_code, org_type) compress 1;
+alter table organization_org_type add constraint organization_org_type_kk foreign key (org_code) references organization(org_code);
 
 
 --LAUNCH_VEHICLE_FAMILY
@@ -1737,7 +1738,8 @@ join
 order by 1,2;
 
 alter table launch_vehicle_manufacturer add constraint launch_vehicle_man_org_pk primary key (lv_id, lv_manufacturer_org_code);
-alter table launch_vehicle_manufacturer add constraint launch_vehicle_man_org_fk foreign key (lv_manufacturer_org_code) references organization(org_code);
+alter table launch_vehicle_manufacturer add constraint launch_vehicle_man_org_fk1 foreign key (lv_manufacturer_org_code) references organization(org_code);
+alter table launch_vehicle_manufacturer add constraint launch_vehicle_man_org_fk2 foreign key (lv_id) references launch_vehicle(lv_id);
 create index launch_vehicle_manufacturer_idx1 on launch_vehicle_manufacturer(lv_manufacturer_org_code);
 
 
@@ -2233,6 +2235,17 @@ select * from satellite where launch_id is null;
 --#9. Create space table DDL.
 --------------------------------------------------------------------------------
 
+--Commands for re-loading staging:
+/*
+--Remove everything:
+begin
+	space_exporter.drop_objects(p_type => 'ALL');
+end;
+
+--Now run everything above in the worksheet.
+*/
+
+
 --Takes about 40 seconds to generate the 25MB file and the CSV files.  Then:
 --1: Create oracle_create_space.sql.zip from oracle_create_space.sql.
 --2: Create csv_files.zip from the .CSV files.
@@ -2241,6 +2254,7 @@ begin
 	space_exporter.generate_csv_files;
 end;
 /
+
 
 --Commands for quickly testing the file:
 /*
