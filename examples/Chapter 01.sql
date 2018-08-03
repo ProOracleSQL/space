@@ -113,13 +113,15 @@ select *
 from launch
 full outer join satellite
 	on launch.launch_id = satellite.launch_id;
+
 --Without optional "outer" keyword.
 select *
 from launch
 full join satellite
 	on launch.launch_id = satellite.launch_id;
+
 --This does not work, it raise the exception:
---  ORA-01468: a predicate may reference only one outer-joined table
+--ORA-01468: a predicate may reference only one outer-joined table
 select *
 from launch, satellite
 where launch.launch_id(+) = satellite.launch_id(+);
