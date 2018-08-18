@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------
--- 5.3
+-- Operating Systems and Supporting Programs
 ---------------------------------------------------------------------------
 
 --Drop the test tables if they already exist.
@@ -14,7 +14,7 @@ select dbms_metadata.get_ddl('TABLE', 'TEST2') from dual;
 
 
 ---------------------------------------------------------------------------
--- 5.5
+-- When we should not use SQL*Plus
 ---------------------------------------------------------------------------
 
 --Run this statement in SQL*Plus and an IDE.
