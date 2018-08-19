@@ -19,6 +19,7 @@ JSR issues:
 
 Orgs: LTV Electronic Systems Division is out of alignment and has a weird "b" in one column.
 Orgs: Thales Alenia Space/Cannes (TAS-F) is the only one in ORG_CLASS "F".  Should it be "B" for business instead?
+Orgs: GHALAM has a shortename slightly out of alignment.
 orgs.html: Should "(MET)" be listed as "meteorological"
 orgs.html: It might help to explain some letters, like CC (control center?), and what PL stands for.
 Family: it doesn't list all the family letters.  Are B, C, and L all "missile"s?
@@ -935,7 +936,16 @@ from
 			trim(tstart) org_start_date,
 			trim(tstop) org_stop_date,
 			trim(location) org_location,
-			coalesce(replace(trim(shortename),'-'), replace(trim(ename),'-'), replace(trim(name),'-')) org_name,
+			coalesce(
+				replace(trim(
+					--Remove some garbage characters to fix GHALAM
+					replace(shortename, '-               -', null)
+				),'-'),
+				replace(trim(
+					--Remove some garbage chracters to fix LTVE.
+					replace(ename, '-                        b', null)
+				),'-'),
+				replace(trim(name),'-')) org_name,
 			trim(uname) org_utf8_name
 		from organization_staging
 		order by code
