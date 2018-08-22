@@ -1,4 +1,21 @@
 ---------------------------------------------------------------------------
+-- Common SQL Problem: Spaghetti Code from Non-Standard Syntax
+---------------------------------------------------------------------------
+
+--Old join syntax we should avoid.
+select *
+from launch, satellite
+where launch.launch_id = satellite.launch_id(+);
+
+--ANSI join syntax we should embrace.
+select *
+from launch
+left join satellite
+	on launch.launch_id = satellite.launch_id;
+
+
+
+---------------------------------------------------------------------------
 -- Hard to debug
 ---------------------------------------------------------------------------
 
@@ -62,10 +79,11 @@ join satellite
 -- Inline Views
 ---------------------------------------------------------------------------
 
---Both of these are subqueries.
---
+--Both of these are subqueries:
+
 --Correlated subquery:
-select (select * from dual a where a.dummy = b.dummy) from dual b
+select (select * from dual a where a.dummy = b.dummy) from dual b;
+
 --Inline view:
 select * from (select * from dual);
 
@@ -128,16 +146,16 @@ from
 		) launches
 		left join
 		(
-			--#2: Launch Vehicle Engine
+			--#2: Launch Vehicle Engines
 			select launch_vehicle_stage.lv_id, stage.engine_id
 			from launch_vehicle_stage
 			left join stage
 				on launch_vehicle_stage.stage_name = stage.stage_name
-		) lv_engine
-			on launches.lv_id = lv_engine.lv_id
+		) lv_engines
+			on launches.lv_id = lv_engines.lv_id
 		left join
 		(
-			--#3: Engine Fuel
+			--#3: Engine Fuels
 			select engine.engine_id, propellent_name fuel
 			from engine
 			left join engine_propellent
@@ -145,8 +163,8 @@ from
 			left join propellent
 				on engine_propellent.propellent_id = propellent.propellent_id
 			where oxidizer_or_fuel = 'fuel'
-		) engine_fuel
-			on lv_engine.engine_id = engine_fuel.engine_id
+		) engine_fuels
+			on lv_engines.engine_id = engine_fuels.engine_id
 		group by to_char(launch_date, 'YYYY'), fuel
 		order by launch_year, launch_count desc, fuel
 	)
