@@ -1591,7 +1591,12 @@ select
 	official_name,
 	secondary_name,
 	jsr_to_date(launch_date) launch_date,
-	current_status,
+	case
+		when current_status = 'Reentered Att' then 'Reentered Attached'
+		when current_status = 'Landed Att' then 'Landed Attached'
+		when current_status = 'Deep Space Attac' then 'Deep Space Attached'
+		else current_status
+	end current_status,
 	jsr_to_date(status_date) status_date,
 	jsr_to_date(orbit_date) orbit_date,
 	to_number(regexp_substr(numbers, '[-0-9.]+', 1, 1)) orbit_period,
