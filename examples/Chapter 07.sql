@@ -250,6 +250,10 @@ group by rollup(lv_family_code, lv_name)
 order by 1,2,3;
 
 
+---------------------------------------------------------------------------
+-- Analytic Functions
+---------------------------------------------------------------------------
+
 --Simple LISTAGG example.
 --List of launch vehicles in the Ariane families.
 select
@@ -261,9 +265,443 @@ group by lv_family_code
 order by lv_family_code;
 
 
-LV_FAMILY_CODE  LV_NAMES
---------------  --------
-Ariane          Ariane 1,Ariane 2,Ariane 3,Ariane 40,Ariane 40,...
-Ariane5         Ariane 5ECA,Ariane 5ES,Ariane 5ES/ATV,Ariane 5G,...
+--FIRST and LAST mode of aggregate functions.
+--For each launch vehicle family, find the first, min, and max apogee.
+select
+	lv_family_code,
+	min(launch.apogee)
+		keep (dense_rank first order by launch_date) first_apogee,
+	min(launch.apogee) min_apogee,
+	max(launch.apogee) max_apogee
+from launch
+join launch_vehicle
+	on launch.lv_id = launch_vehicle.lv_id
+where launch.apogee is not null
+group by lv_family_code
+order by lv_family_code;
+
+
+--RANK and DENSE_RANK examples.
+--Most popular launch vehicle families.
+select
+	launch_category category
+	,lv_family_code family
+	,launch_count count
+	,rank() over (order by launch_count desc) rank_total
+	,rank() over (partition by launch_category
+		order by launch_count desc) rank_per_category
+from
+(
+	--Launch counts per category and family.
+	select launch_category, lv_family_code, count(*) launch_count
+	from launch
+	join launch_vehicle
+		on launch.lv_id = launch_vehicle.lv_id
+	group by launch_category, lv_family_code
+	order by count(*) desc
+)
+order by launch_count desc, launch_category desc;
+
+
+--LAG, LEAD, running total example.
+--Deep space launches, with days between and running total for family.
+select
+	to_char(launch_date, 'YYYY-MM-DD') launch_date,
+	flight_id2 spacecraft,
+	lv_family_code family,
+	trunc(launch_date) - lag(trunc(launch_date)) over
+		(partition by lv_family_code
+		order by launch_date) days_between,
+	count(*) over
+		(partition by lv_family_code order by launch_date) running_total
+from launch
+join launch_vehicle
+	on launch.lv_id = launch_vehicle.lv_id
+where launch_category = 'deep space'
+order by launch.launch_date;
+
+
+
+--Tabibitosan (Japanese counting method)
+--Not shown in the book - it would take too long to describe.
+--
+--Find ranges of consecutive launches per family.
+select
+	lv_family_code,
+	count(*) count_in_range,
+	min(the_month) || ' - ' || max(the_month) range
+from
+(
+	--Create groups of launches per family.
+	select
+		lv_family_code,
+		the_month,
+		the_month - row_number() over (partition by lv_family_code order by the_month) group_id
+	from
+	(
+		--Distinct launch months per family.
+		select distinct
+			lv_family_code,
+			to_number(to_char(launch_date, 'YYYYMM')) the_month
+		from launch
+		join launch_vehicle
+			on launch.lv_id = launch_vehicle.lv_id
+		order by lv_family_code, the_month
+	)
+)
+group by group_id, lv_family_code
+having count(*) >= 2
+order by lv_family_code;
+
+
+
+---------------------------------------------------------------------------
+-- Regular Expressions
+---------------------------------------------------------------------------
+
+--Launch vehicle names with Roman numerals.
+select lv_name
+from launch_vehicle
+where regexp_like(lv_name, '\W[IVX]+')
+	and lv_name like 'Black Brant%'
+order by lv_name;
+
+
+--Replace some Roman numerals.
+with function convert_roman_numeral(p_text varchar2) return varchar2 is
+begin
+	return case upper(p_text)
+	when 'I' then '01'
+	when 'II' then '02'
+	when 'III' then '03'
+	end;
+end;
+select
+	lv_name,
+	regexp_replace(lv_name, '\W[IVX]+', 
+		convert_roman_numeral(regexp_substr(lv_name, '\W([IVX]+)', 1, 1, null, 0))
+	) new_name
+from launch_vehicle
+where regexp_like(lv_name, '\W[IVX]+')
+	and lv_name like 'Black Brant%'
+order by lv_name;
+/
+
+
+--Convert Roman numerals and re-assemble pieces into a name.
+select
+	part_1||part_2||
+	--This hard-coding is clearly not the best way to do it.
+	case part_3
+		when 'I' then '01'
+		when 'II' then '02'
+		when 'III' then '03'
+	end||
+	part_4 new_lv_name
+from
+(
+	--Launch vehicles with Roman numerals, broken into parts.
+	select
+		regexp_replace(lv_name, '(.*)(\W)([IVX]+)(.*)', '\1') part_1,
+		regexp_replace(lv_name, '(.*)(\W)([IVX]+)(.*)', '\2') part_2,
+		regexp_replace(lv_name, '(.*)(\W)([IVX]+)(.*)', '\3') part_3,
+		regexp_replace(lv_name, '(.*)(\W)([IVX]+)(.*)', '\4') part_4
+	from launch_vehicle
+	where regexp_like(lv_name, '\W[IVX]+')
+		and lv_name like 'Black Brant%'
+	order by lv_name
+);
+
+
+
+---------------------------------------------------------------------------
+-- Row Limiting
+---------------------------------------------------------------------------
+
+--Row limiting clause.
+--First 3 satellites.
+select
+	to_char(orbit_date, 'YYYY-MM-DD') orbit_date,
+	official_name
+from satellite
+order by orbit_date, official_name
+fetch first 3 rows only;
+
+
+--Using the old ROWNUM method.
+--First 3 satellites.
+select orbit_date, official_name, rownum
+from
+(
+	select
+		to_char(orbit_date, 'YYYY-MM-DD') orbit_date,
+		official_name
+	from satellite
+	order by orbit_date, official_name
+)
+where rownum <= 3;
+
+
+--Using the ROW_NUMBER method.
+--First 2 satellites of each year.
+select orbit_date, official_name
+from
+(
+	select
+		to_char(orbit_date, 'YYYY-MM-DD') orbit_date,
+		official_name,
+		row_number() over
+		(
+			partition by trunc(orbit_date, 'year')
+			order by orbit_date
+		) first_n_per_year
+	from satellite
+	order by orbit_date, official_name
+)
+where first_n_per_year <= 2
+order by orbit_date, official_name;
+
+
+
+---------------------------------------------------------------------------
+-- Pivoting and Unpivoting
+---------------------------------------------------------------------------
+
+--A typical grouping.
+--Launch success and failure per year.
+select
+	to_char(launch_date, 'YYYY') launch_year,
+	launch_status,
+	count(*) status_count
+from launch
+where launch_category in ('orbital', 'deep space')
+group by to_char(launch_date, 'YYYY'), launch_status
+order by launch_year, launch_status desc;
+
+
+--Old-fashioned pivoting method.
+--Pivoted launch success and failure per year.
+select
+	to_char(launch_date, 'YYYY') launch_year,
+	sum(case when launch_status = 'success' then 1 else 0 end) success,
+	sum(case when launch_status = 'failure' then 1 else 0 end) failure
+from launch
+where launch_category in ('orbital', 'deep space')
+group by to_char(launch_date, 'YYYY')
+order by launch_year;
+
+
+--New PIVOT syntax.
+--Pivoted launch success and failure per year.
+select *
+from
+(
+	--Orbital and deep space launches.
+	select to_char(launch_date, 'YYYY') launch_year, launch_status
+	from launch
+	where launch_category in ('orbital', 'deep space')
+) launches
+pivot
+(
+	count(*)
+	for launch_status in
+	(
+		'success' as success,
+		'failure' as failure
+	)
+)
+order by launch_year;
+
+
+--Data that should be unpivoted.
+--Multiple FLIGHT_ID columns per launch.
+select launch_id, flight_id1, flight_id2
+from launch
+where launch_category in ('orbital', 'deep space')
+order by launch_id;
+
+
+--Old unpivot method.
+--Unpivot data using UNION ALL.
+select launch_id, 1 flight_id, flight_id1 flight_name
+from launch
+where launch_category in ('orbital', 'deep space')
+	and flight_id1 is not null
+union all
+select launch_id, 2 flight_id, flight_id2 flight_name
+from launch
+where launch_category in ('orbital', 'deep space')
+	and flight_id2 is not null
+order by launch_id, flight_id;
+
+
+--UNPIVOT example.
+--Unpivot data with UNPIVOT syntax.
+select *
+from
+(
+	select launch_id, flight_id1, flight_id2
+	from launch
+	where launch_category in ('orbital', 'deep space')
+) launches
+unpivot (flight_name for flight_id in (flight_id1 as 1, flight_id2 as 2))
+order by launch_id;
+
+
+
+---------------------------------------------------------------------------
+-- Table References
+---------------------------------------------------------------------------
+
+--Flashback query.
+select *
+from launch as of timestamp systimestamp - interval '10' minute;
+
+
+--Sample query that returns a slightly different number each time.
+select count(*) from launch sample (1);
+--Sample query that returns the same number each time.
+select count(*) from launch sample (1) seed (1234);
+
+
+--Reference partition name.
+select *
+from sys.wrh$_sqlstat partition (wrh$_sqlstat_mxdb_mxsn);
+
+--Reference partition key values.
+select *
+from sys.wrh$_sqlstat partition for (1,1);
+
+
+
+---------------------------------------------------------------------------
+-- National Language Support
+---------------------------------------------------------------------------
+
+--Shows some of the N data types.
+select
+	cast('a' as nvarchar2(100)),
+	cast('a' as nchar),
+	to_nclob('a'),
+	n'a'
+from dual;
+
+
+--Store unicode characters in a text file of any encoding.
+select unistr('A\00e9ro-Club de France') org_utf8_name
+from dual;
+
+
+--Byte length semantics error.
+create table byte_semantics_test(a varchar2(1));
+insert into byte_semantics_test values('é');
+
+--Character length semantics works.
+create table character_semantics_test(a varchar2(1 char));
+insert into character_semantics_test values('é');
+
+
+--Use accent-independent linguistic comparision and sorting.
+alter session set nls_comp=linguistic;
+alter session set nls_sort=binary_ai;
+
+select org_utf8_name
+from organization
+where org_utf8_name like 'Aero-Club de France%';
+
+
+--Regular sort.
+select org_utf8_name
+from organization
+order by org_utf8_name;
+
+
+--Accent independent sort.
+select org_utf8_name
+from organization
+order by nlssort(org_utf8_name, 'nls_sort=binary_ai');
+
+
+--Dangerous NLS_DATE_FORMAT assumption.
+select *
+from launch
+where trunc(launch_date) = '04-Oct-1957';
+
+--Somewhat safe date format conversion.
+select *
+from launch
+where to_char(launch_date, 'DD-Mon-YYYY') = '04-Oct-1957';
+
+
+
+---------------------------------------------------------------------------
+-- Common Table Expressions
+---------------------------------------------------------------------------
+
+--Delete and update a random row from a not-so-important table.
+delete from engine_propellent where rownum <= 1;
+
+update engine_propellent
+set oxidizer_or_fuel =
+	case when oxidizer_or_fuel = 'fuel' then 'oxidizer' else 'fuel' end
+where rownum <= 1;
+
+
+--Changes made to ENGINE_PROPELLENT in past 5 minutes.
+with old as
+(
+	--Table as of 5 minutes ago.
+	select *
+	from engine_propellent
+	as of timestamp systimestamp - interval '5' minute
+),
+new as
+(
+	--Table right now.
+	select *
+	from engine_propellent
+)
+--Both row differences put together.
+select *
+from
+(
+	--Rows in old table that aren't in new.
+	select 'old' old_or_new, old.* from old
+	minus
+	select 'old' old_or_new, new.* from new
+)
+union all
+(
+	--Rows in new table that aren't in old.
+	select 'new' old_or_new, new.* from new
+	minus
+	select 'new' old_or_new, old.* from old
+)
+order by 2, 3, 4, 1;
+
+
+--PL/SQL WITH clause.
+--Launches with a numeric FLIGHT_ID1.
+with function is_number(p_string in varchar2) return varchar2 is
+	v_number number;
+begin
+	v_number := to_number(p_string);
+	return 'Y';
+exception
+	when value_error then return 'N';
+end;
+select to_char(launch_date, 'YYYY-MM-DD') launch_date, flight_id1
+from launch
+where flight_id1 is not null
+	and is_number(flight_id1) = 'Y'
+order by 1,2;
+/
+
+
+
+---------------------------------------------------------------------------
+-- Recursive Queries
+---------------------------------------------------------------------------
+
 
 
