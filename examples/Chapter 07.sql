@@ -413,6 +413,16 @@ from
 );
 
 
+--Split a comma-separated string into its elements.
+select regexp_substr(csv, '[^,]', 1, level) element
+from
+(
+	select 'a,b,c' csv
+	from dual
+)
+connect by level <= regexp_count(csv, ',') + 1;
+
+
 
 ---------------------------------------------------------------------------
 -- Row Limiting
@@ -697,11 +707,183 @@ where flight_id1 is not null
 order by 1,2;
 /
 
+--Simplified version that uses TO_NUMBER conversion error, 12.2 or higher.
+select to_char(launch_date, 'YYYY-MM-DD') launch_date, flight_id1
+from launch
+where to_number(flight_id1 default null on conversion error) is not null
+order by 1,2;
 
 
 ---------------------------------------------------------------------------
 -- Recursive Queries
 ---------------------------------------------------------------------------
 
+--Organization hierarchy with CONNECT BY.
+select
+	lpad('  ', 2*(level-1)) || org_code org_code,
+	parent_org_code parent,
+	org_name
+from organization
+connect by prior org_code = parent_org_code
+start with parent_org_code is null
+order siblings by organization.org_code;
 
+
+--Organization hierarchy from recursive CTE.
+with orgs(org_code, org_name, parent_org_code, n, hierarchy) as
+(
+	--Start with parent rows:
+	select org_code, org_name, parent_org_code, 1, org_code
+	from organization
+	where parent_org_code is null
+	union all
+	--Add child rows by joining to parent rows:
+	select
+		organization.org_code,
+		organization.org_name,
+		organization.parent_org_code,
+		n+1,
+		hierarchy || '-' || organization.org_code
+	from orgs
+	join organization
+		on orgs.org_code = organization.parent_org_code
+)
+select
+	lpad('  ', 2*(n-1)) || org_code org_code,
+	parent_org_code parent,
+	org_name
+from orgs
+order by hierarchy;
+
+
+
+---------------------------------------------------------------------------
+-- XML
+---------------------------------------------------------------------------
+
+--Convert text to XML.
+select xmltype('<a></a>') from dual;
+
+--Convert to XMLType and convert back to CLOB.
+select table_reference.xml_column.getClobVal()
+from
+(
+	select xmltype('<a></a>') xml_column
+	from dual
+) table_reference;
+
+--Invalid XML:
+SQL> select xmltype('<a></a') from dual;
+ERROR:
+ORA-31011: XML parsing failed
+ORA-19202: Error occurred in XML processing
+LPX-00007: unexpected end-of-file encountered
+ORA-06512: at "SYS.XMLTYPE", line 310
+ORA-06512: at line 1
+;
+
+
+--The simplest way to create an XML file.
+--Create XML file for launch data.
+select dbms_xmlgen.getxml('
+	select launch_id, launch_date, launch_category
+	from launch
+	where launch_id = 4305
+	')
+from dual;
+
+
+--Precisely create an XML file for a launch.
+--(Not shown in book.)
+select TO_CHAR(LAUNCH_DATE, 'YYYY-MM-DD') LAUNCH_DATE from launch;
+select
+	xmlelement(
+		"Launch",
+		xmlattributes(launch_id),
+		xmlforest(launch_date, launch_category)
+	)
+from launch
+where launch_id = 4305;
+
+
+--Create a single XML file for launch data.
+create table launch_xml as
+select xmltype(dbms_xmlgen.getxml('select * from launch')) xml
+from dual;
+
+
+--Count launches per category using LAUNCH_XML table.
+select launch_category, count(*)
+from launch_xml
+cross join xmltable(
+	'/ROWSET/ROW'
+	passing launch_xml.xml
+	columns
+		launch_id  number path 'LAUNCH_ID',
+		launch_category varchar2(31) path 'LAUNCH_CATEGORY'
+)
+group by launch_category
+order by count(*) desc;
+
+
+--There's a whole other query language available with XQuery.
+--XQuery FLWOR row generator.
+select *
+from xmltable
+(
+	'for $i in xs:integer($i) to xs:integer($j) return $i'
+	passing 1 as "i", 3 as "j"
+	columns val number path '.'
+);
+
+
+
+---------------------------------------------------------------------------
+-- JSON
+---------------------------------------------------------------------------
+
+--Simple JSON example.
+select json_object('string' value 'a', 'array' value json_array(1,2))
+from dual;
+
+
+--Create table to hold JSON launch data.
+create table launch_json
+(
+	launch_id number,
+	json clob,
+	constraint launch_json_pk primary key(launch_id),
+	constraint launch_json_ck check (json is json)
+);
+
+
+--Populate LAUNCH_JSON with some of the LAUNCH data.
+insert into launch_json
+select
+	launch_id,
+	json_object
+	(
+		'launch_date' value to_char(launch_date, 'YYYY-MM-DD'),
+		'flight_ids' value json_array(flight_id1, flight_id2)
+	) json
+from launch
+where launch_category in ('orbital', 'deep space');
+commit;
+
+
+--View JSON data in LAUNCH_JSON.
+select to_char(json) launch_data
+from launch_json
+order by launch_id;
+
+
+--Simple JSON query on table LAUNCH_JSON.
+select
+	launch_id,
+	substr(launch_json.json.launch_date, 1, 10) launch_date,
+	launch_json.json.flight_ids[0] flight_id1,
+	launch_json.json.flight_ids[1] flight_id2,
+	launch_json.json.flight_ids[2] flight_id3
+from launch_json launch_json
+order by launch_date;
 
