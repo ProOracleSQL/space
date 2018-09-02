@@ -128,9 +128,9 @@ order by orbit_date desc nulls last, 2;
 ---------------------------------------------------------------------------
 
 --Partitioned outer join example.
---Count of launches per orbital family, per month of 2017.
+--Count of launches per launch vehicle family, per month of 2017.
 select
-	launches.lv_family_code,
+	launches.lv_family_code family,
 	months.launch_month,
 	nvl(launch_count, 0) launch_count	
 from
@@ -225,12 +225,12 @@ join satellite using (launch_id);
 
 --Simple grouping example.
 --Count of launches per family and name.
-select lv_family_code, lv_name, count(*) launch_count
+select lv_family_code, lv_name, count(*)
 from launch
 join launch_vehicle
 	on launch.lv_id = launch_vehicle.lv_id
 where launch.launch_category in ('orbital', 'deep space')
-group by lv_class, lv_family_code, lv_name
+group by lv_family_code, lv_name
 order by 1,2,3;
 
 
@@ -239,9 +239,9 @@ order by 1,2,3;
 select
 	lv_family_code,
 	lv_name,
-	count(*) launch_count,
-	grouping(lv_family_code) is_family_group,
-	grouping(lv_name) is_name_group
+	count(*),
+	grouping(lv_family_code) is_family_grp,
+	grouping(lv_name) is_name_grp
 from launch
 join launch_vehicle
 	on launch.lv_id = launch_vehicle.lv_id
@@ -286,21 +286,21 @@ order by lv_family_code;
 select
 	launch_category category
 	,lv_family_code family
-	,launch_count count
-	,rank() over (order by launch_count desc) rank_total
+	,count
+	,rank() over (order by count desc) rank_total
 	,rank() over (partition by launch_category
-		order by launch_count desc) rank_per_category
+		order by count desc) rank_per_category
 from
 (
 	--Launch counts per category and family.
-	select launch_category, lv_family_code, count(*) launch_count
+	select launch_category, lv_family_code, count(*) count
 	from launch
 	join launch_vehicle
 		on launch.lv_id = launch_vehicle.lv_id
 	group by launch_category, lv_family_code
 	order by count(*) desc
 )
-order by launch_count desc, launch_category desc;
+order by count desc, launch_category desc;
 
 
 --LAG, LEAD, running total example.
