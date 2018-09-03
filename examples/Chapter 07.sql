@@ -564,12 +564,14 @@ order by launch_id;
 ---------------------------------------------------------------------------
 
 --Flashback query.
+--LAUNCH table as it looked 10 minutes ago.
 select *
 from launch as of timestamp systimestamp - interval '10' minute;
 
 
---Sample query that returns a slightly different number each time.
+--Sample query that returns a different number each time.
 select count(*) from launch sample (1);
+
 --Sample query that returns the same number each time.
 select count(*) from launch sample (1) seed (1234);
 
@@ -581,66 +583,6 @@ from sys.wrh$_sqlstat partition (wrh$_sqlstat_mxdb_mxsn);
 --Reference partition key values.
 select *
 from sys.wrh$_sqlstat partition for (1,1);
-
-
-
----------------------------------------------------------------------------
--- National Language Support
----------------------------------------------------------------------------
-
---Shows some of the N data types.
-select
-	cast('a' as nvarchar2(100)),
-	cast('a' as nchar),
-	to_nclob('a'),
-	n'a'
-from dual;
-
-
---Store unicode characters in a text file of any encoding.
-select unistr('A\00e9ro-Club de France') org_utf8_name
-from dual;
-
-
---Byte length semantics error.
-create table byte_semantics_test(a varchar2(1));
-insert into byte_semantics_test values('é');
-
---Character length semantics works.
-create table character_semantics_test(a varchar2(1 char));
-insert into character_semantics_test values('é');
-
-
---Use accent-independent linguistic comparision and sorting.
-alter session set nls_comp=linguistic;
-alter session set nls_sort=binary_ai;
-
-select org_utf8_name
-from organization
-where org_utf8_name like 'Aero-Club de France%';
-
-
---Regular sort.
-select org_utf8_name
-from organization
-order by org_utf8_name;
-
-
---Accent independent sort.
-select org_utf8_name
-from organization
-order by nlssort(org_utf8_name, 'nls_sort=binary_ai');
-
-
---Dangerous NLS_DATE_FORMAT assumption.
-select *
-from launch
-where trunc(launch_date) = '04-Oct-1957';
-
---Somewhat safe date format conversion.
-select *
-from launch
-where to_char(launch_date, 'DD-Mon-YYYY') = '04-Oct-1957';
 
 
 
@@ -687,7 +629,7 @@ union all
 	minus
 	select 'new' old_or_new, old.* from old
 )
-order by 2, 3, 4, 1;
+order by 2, 3, 1 desc;
 
 
 --PL/SQL WITH clause.
@@ -744,9 +686,9 @@ with orgs(org_code, org_name, parent_org_code, n, hierarchy) as
 		organization.parent_org_code,
 		n+1,
 		hierarchy || '-' || organization.org_code
-	from orgs
+	from orgs parent_orgs
 	join organization
-		on orgs.org_code = organization.parent_org_code
+		on parent_orgs.org_code = organization.parent_org_code
 )
 select
 	lpad('  ', 2*(n-1)) || org_code org_code,
@@ -788,7 +730,7 @@ ORA-06512: at line 1
 select dbms_xmlgen.getxml('
 	select launch_id, launch_date, launch_category
 	from launch
-	where launch_id = 4305
+	where launch_tag = ''1957 ALP''
 	')
 from dual;
 
@@ -887,3 +829,62 @@ select
 from launch_json launch_json
 order by launch_date;
 
+
+
+---------------------------------------------------------------------------
+-- National Language Support
+---------------------------------------------------------------------------
+
+--Shows some of the N data types.
+select
+	cast('a' as nvarchar2(100)),
+	cast('a' as nchar),
+	to_nclob('a'),
+	n'a'
+from dual;
+
+
+--Store unicode characters in a text file of any encoding.
+select unistr('A\00e9ro-Club de France') org_utf8_name
+from dual;
+
+
+--Byte length semantics causes an error.
+create table byte_semantics_test(a varchar2(1));
+insert into byte_semantics_test values('é');
+
+--Character length semantics works correctly.
+create table character_semantics_test(a varchar2(1 char));
+insert into character_semantics_test values('é');
+
+
+--Use accent-independent linguistic comparision and sorting.
+alter session set nls_comp=linguistic;
+alter session set nls_sort=binary_ai;
+
+select org_utf8_name
+from organization
+where org_utf8_name like 'Aero-Club de France%';
+
+
+--Regular sort.
+select org_utf8_name
+from organization
+order by org_utf8_name;
+
+
+--Accent independent sort.
+select org_utf8_name
+from organization
+order by nlssort(org_utf8_name, 'nls_sort=binary_ai');
+
+
+--Dangerous NLS_DATE_FORMAT assumption.
+select *
+from launch
+where trunc(launch_date) = '04-Oct-1957';
+
+--Somewhat safe date format conversion.
+select *
+from launch
+where to_char(launch_date, 'DD-Mon-YYYY') = '04-Oct-1957';
