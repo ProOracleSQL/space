@@ -1758,29 +1758,29 @@ alter table launch_vehicle_manufacturer add constraint launch_vehicle_man_org_fk
 create index launch_vehicle_manufact_idx1 on launch_vehicle_manufacturer(lv_manufacturer_org_code);
 
 
---PROPELLENT
-create table propellent compress as
+--PROPELLANT
+create table propellant compress as
 select
-	row_number() over (order by propellent_name) propellent_id,
-	propellent_name
+	row_number() over (order by propellant_name) propellant_id,
+	propellant_name
 from
 (
-	select distinct column_value propellent_name
+	select distinct column_value propellant_name
 	from
 	(
 		--All chemicals
-		select oxidizer_list propellent_list
+		select oxidizer_list propellant_list
 		from engine_staging_view
 		union
-		select fuel_list propellent_list
+		select fuel_list propellant_list
 		from engine_staging_view
 	)
-	cross join get_nt_from_list(propellent_list, '/')
+	cross join get_nt_from_list(propellant_list, '/')
 )
-order by propellent_name;
+order by propellant_name;
 
-alter table propellent add constraint propellent_pk primary key (propellent_id);
-alter table propellent add constraint propellent_uq unique (propellent_name);
+alter table propellant add constraint propellant_pk primary key (propellant_id);
+alter table propellant add constraint propellant_uq unique (propellant_name);
 
 
 --ENGINE
@@ -1804,30 +1804,30 @@ order by engine_id;
 alter table engine add constraint engine_pk primary key (engine_id);
 
 
---ENGINE_PROPELLENT (bridge table)
-create table engine_propellent compress as
---Propellents
-with propellent_list_and_id as
+--ENGINE_PROPELLANT (bridge table)
+create table engine_propellant compress as
+--Propellants
+with propellant_list_and_id as
 (
-	--Propellent lists with propellent_ids.
-	select propellent_list, propellent_id
+	--Propellant lists with propellant_ids.
+	select propellant_list, propellant_id
 	from
 	(
-		--Propellent lists expanded.
-		select propellent_list, column_value propellent_name
+		--Propellant lists expanded.
+		select propellant_list, column_value propellant_name
 		from
 		(
-			--All propellent lists.
-			select oxidizer_list propellent_list
+			--All propellant lists.
+			select oxidizer_list propellant_list
 			from engine_staging_view
 			union
-			select fuel_list propellent_list
+			select fuel_list propellant_list
 			from engine_staging_view
 		)
-		cross join get_nt_from_list(propellent_list, '/')
-	) propellent_lists
-	join propellent
-		on propellent_lists.propellent_name = propellent.propellent_name
+		cross join get_nt_from_list(propellant_list, '/')
+	) propellant_lists
+	join propellant
+		on propellant_lists.propellant_name = propellant.propellant_name
 ),
 --Engines
 engines as
@@ -1839,22 +1839,22 @@ engines as
 	from engine_staging_view
 )
 --Oxidizers
-select engine_id, propellent_id, 'oxidizer' oxidizer_or_fuel
+select engine_id, propellant_id, 'oxidizer' oxidizer_or_fuel
 from engines
-join propellent_list_and_id
-	on engines.oxidizer_list = propellent_list_and_id.propellent_list
+join propellant_list_and_id
+	on engines.oxidizer_list = propellant_list_and_id.propellant_list
 union all
 --Fuels
-select engine_id, propellent_id, 'fuel' oxidizer_or_fuel
+select engine_id, propellant_id, 'fuel' oxidizer_or_fuel
 from engines
-join propellent_list_and_id
-	on engines.fuel_list = propellent_list_and_id.propellent_list
+join propellant_list_and_id
+	on engines.fuel_list = propellant_list_and_id.propellant_list
 order by 1,2,3;
 
-alter table engine_propellent add constraint engine_propellent_pk primary key (engine_id, propellent_id, oxidizer_or_fuel);
-alter table engine_propellent add constraint engine_propellent_engine_fk foreign key (engine_id) references engine(engine_id);
-alter table engine_propellent add constraint engine_propellent_prop_fk foreign key (propellent_id) references propellent(propellent_id);
-create index engine_propellent_idx1 on engine_propellent(propellent_id);
+alter table engine_propellant add constraint engine_propellant_pk primary key (engine_id, propellant_id, oxidizer_or_fuel);
+alter table engine_propellant add constraint engine_propellant_engine_fk foreign key (engine_id) references engine(engine_id);
+alter table engine_propellant add constraint engine_propellant_prop_fk foreign key (propellant_id) references propellant(propellant_id);
+create index engine_propellant_idx1 on engine_propellant(propellant_id);
 
 
 --ENGINE_MANUFACTURER (bridge table)
@@ -2266,6 +2266,7 @@ end;
 --2: Create csv_files.zip from the .CSV files.
 begin
 	space_exporter.generate_oracle_file;
+	space_exporter.generate_postgres_file;
 	space_exporter.generate_csv_files;
 end;
 /

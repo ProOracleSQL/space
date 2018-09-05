@@ -38,8 +38,8 @@ g_ordered_objects constant sys.odcivarchar2list := sys.odcivarchar2list
 	'STAGE',
 	'LAUNCH_VEHICLE_STAGE',
 	'STAGE_MANUFACTURER',
-	'PROPELLENT',
-	'ENGINE_PROPELLENT',
+	'PROPELLANT',
+	'ENGINE_PROPELLANT',
 	'ENGINE_MANUFACTURER'
 );
 

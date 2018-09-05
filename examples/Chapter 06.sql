@@ -156,12 +156,12 @@ from
 		left join
 		(
 			--#3: Engine Fuels
-			select engine.engine_id, propellent_name fuel
+			select engine.engine_id, propellant_name fuel
 			from engine
-			left join engine_propellent
-				on engine.engine_id = engine_propellent.engine_id
-			left join propellent
-				on engine_propellent.propellent_id = propellent.propellent_id
+			left join engine_propellant
+				on engine.engine_id = engine_propellant.engine_id
+			left join propellant
+				on engine_propellant.propellant_id = propellant.propellant_id
 			where oxidizer_or_fuel = 'fuel'
 		) engine_fuels
 			on lv_engines.engine_id = engine_fuels.engine_id
@@ -190,16 +190,16 @@ from
 		select
 			to_char(launch_date, 'YYYY') launch_year,
 			count(*) launch_count,
-			propellent_name fuel
-		from launch, launch_vehicle_stage, stage, engine, engine_propellent, propellent
+			propellant_name fuel
+		from launch, launch_vehicle_stage, stage, engine, engine_propellant, propellant
 		where launch.lv_id = launch_vehicle_stage.lv_id(+)
 			and launch_vehicle_stage.stage_name = stage.stage_name(+)
 			and stage.engine_id = engine.engine_id(+)
-			and engine.engine_id = engine_propellent.engine_id(+)
-			and engine_propellent.propellent_id = propellent.propellent_id(+)
+			and engine.engine_id = engine_propellant.engine_id(+)
+			and engine_propellant.propellant_id = propellant.propellant_id(+)
 			and launch_category in ('orbital', 'deep space')
 			and oxidizer_or_fuel = 'fuel'
-		group by to_char(launch_date, 'YYYY'), propellent_name
+		group by to_char(launch_date, 'YYYY'), propellant_name
 		order by launch_year, launch_count desc, fuel
 	)
 )

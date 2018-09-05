@@ -1,4 +1,4 @@
-SpaceDB v1.2.2
+SpaceDB v1.2.3
 ==============
 
 SpaceDB is a data set that contains all orbital and suborbital launches, all satellites, and related information.  It's based on data from the JSR Launch Vehicle Database, 2017 Dec 28 Edition.
@@ -84,11 +84,11 @@ Below is a simple text description of the tables, roughly ordered by their impor
 	STAGE
 		STAGE_MANUFACTURER
 
-	PROPELLENT
+	PROPELLANT
 
 	ENGINE
 		ENGINE_MANUFACTURER
-		ENGINE_PROPELLENT
+		ENGINE_PROPELLANT
 
 	LAUNCH_VEHICLE_STAGE
 

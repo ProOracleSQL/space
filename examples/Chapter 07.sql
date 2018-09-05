@@ -591,27 +591,27 @@ from sys.wrh$_sqlstat partition for (1,1);
 ---------------------------------------------------------------------------
 
 --Delete and update a random row from a not-so-important table.
-delete from engine_propellent where rownum <= 1;
+delete from engine_propellant where rownum <= 1;
 
-update engine_propellent
+update engine_propellant
 set oxidizer_or_fuel =
 	case when oxidizer_or_fuel = 'fuel' then 'oxidizer' else 'fuel' end
 where rownum <= 1;
 
 
---Changes made to ENGINE_PROPELLENT in past 5 minutes.
+--Changes made to ENGINE_PROPELLANT in past 5 minutes.
 with old as
 (
 	--Table as of 5 minutes ago.
 	select *
-	from engine_propellent
+	from engine_propellant
 	as of timestamp systimestamp - interval '5' minute
 ),
 new as
 (
 	--Table right now.
 	select *
-	from engine_propellent
+	from engine_propellant
 )
 --Both row differences put together.
 select *
