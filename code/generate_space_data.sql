@@ -681,7 +681,7 @@ organization external
 reject limit unlimited
 /
 
---WARNING: Had to change the filename to "all", and change "group" to "payload_group", change skip to 0, and had to add FlightCode.
+--WARNING: Had to change the filename to "all", and change "group" to "payload_group", change skip to 0, and had to add Flight_Code.
 create table launch_staging
 (
 	Launch_Tag varchar2(15),
@@ -692,7 +692,7 @@ create table launch_staging
 	Flight_ID varchar2(21),
 	Flight   varchar2(25),
 	Mission  varchar2(25),
-	FlightCode varchar2(25),
+	Flight_Code varchar2(25),
 	Platform varchar2(10),
 	Launch_Site varchar2(9),
 	Launch_Pad varchar2(17),
@@ -730,7 +730,7 @@ organization external
 			Flight_ID (80:100)  char(21),
 			Flight   (101:125)  char(25),
 			Mission  (126:150)  char(25),
-			FlightCode (151:175) char(25),
+			Flight_Code (151:175) char(25),
 			Platform (176:185)  char(10),
 			Launch_Site (186:194)  char(9),
 			Launch_Pad (195:211)  char(17),
@@ -1040,7 +1040,7 @@ select
 	launch_mass,
 	leo_capacity,
 	gto_capacity,
-	take_off_thrust,
+	takeoff_thrust,
 	apogee,
 	range
 from
@@ -1059,7 +1059,7 @@ from
 		to_number(nullif(replace(launch_mass, '?'), '-')) launch_mass,
 		to_number(nullif(replace(leo_capacity, '?'), '-')) leo_capacity,
 		to_number(nullif(replace(gto_capacity, '?'), '-')) gto_capacity,
-		to_number(nullif(replace(take_off_thrust, '?'), '-')) take_off_thrust,
+		to_number(nullif(replace(takeoff_thrust, '?'), '-')) takeoff_thrust,
 		lv_class,
 		to_number(nullif(replace(apogee, '?'), '-')) apogee,
 		to_number(nullif(replace(range, '?'), '-')) range
@@ -1080,7 +1080,7 @@ from
 			trim(launch_mass) launch_mass,
 			trim(leo_capacity) leo_capacity,
 			trim(gto_capacity) gto_capacity,
-			trim(to_thrust) take_off_thrust,
+			trim(to_thrust) takeoff_thrust,
 			trim(class) lv_class,
 			trim(apogee) apogee,
 			trim(range) range
@@ -1432,7 +1432,7 @@ select
 	flight_id,
 	flight,
 	mission,
-	flightcode,
+	flight_code,
 	--Fix platform typos
 	case
 		when platform_code = 'INS' then 'INS-OPV'
@@ -1519,7 +1519,7 @@ from
 		replace(nullif(flight_id, '-'), '?') flight_id,
 		replace(nullif(flight, '-'), '?') flight,
 		nullif(mission, '-') mission,
-		nullif(flightcode, '-') flightcode,
+		nullif(flight_code, '-') flight_code,
 		replace(nullif(trim(platform), '-'), '?') platform_code,
 		trim(replace(launch_site, '?')) launch_site,
 		replace(nullif(launch_pad, '-'), '?') launch_pad,
@@ -1708,7 +1708,7 @@ create table launch_vehicle compress as
 select
 	row_number() over (order by lv_name, lv_variant) lv_id,
 	lv_name, lv_variant, lv_class, lv_family_code, lv_alias, min_stage, max_stage,
-	length, diameter, launch_mass, leo_capacity, gto_capacity, take_off_thrust,
+	length, diameter, launch_mass, leo_capacity, gto_capacity, takeoff_thrust,
 	apogee, range
 from launch_vehicle_staging_view
 order by 1,2;
@@ -2069,7 +2069,7 @@ select
 	flight_id flight_id1,
 	flight flight_id2,
 	mission,
-	flightcode,
+	flight_code,
 	flight_type,
 	(
 		select site_id
@@ -2261,16 +2261,13 @@ end;
 */
 
 
---Takes about 40 seconds to generate the 25MB file and the CSV files.  Then:
---1: Create oracle_create_space.sql.zip from oracle_create_space.sql.
---2: Create csv_files.zip from the .CSV files.
+--Takes about 40 seconds to generate the 25MB file and the CSV files.
+--Regenerate Oracle files.
 begin
 	space_exporter.generate_oracle_file;
-	space_exporter.generate_postgres_file;
 	space_exporter.generate_csv_files;
 end;
 /
-
 
 --Commands for quickly testing the file:
 /*
@@ -2279,6 +2276,16 @@ create user space identified by "enterAPasswordHere" quota unlimited on users;
 alter session set current_schema=space;
 @oracle_create_space.sql
 */
+
+--Recreate Postgres files after recreating Space schema.
+begin
+	space_exporter.generate_postgres_file;
+end;
+/
+
+--Now create ZIP files:
+--1: Create oracle_create_space.sql.zip from oracle_create_space.sql.
+--2: Create csv_files.zip from the .CSV files.
 
 --Check size.
 select sum(bytes)/1024/1024 from dba_segments where owner = 'SPACE';
