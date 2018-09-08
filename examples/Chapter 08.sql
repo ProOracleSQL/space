@@ -132,16 +132,73 @@ alter session enable parallel dml;
 
 
 
+---------------------------------------------------------------------------
+-- Error Logging
+---------------------------------------------------------------------------
+
+--Example of statement that causes an error.
+SQL> insert into launch(launch_id, launch_tag)
+  2  values (-1, 'A value too large for this column');
+values (-1, 'A value too large for this column')
+            *
+ERROR at line 2:
+ORA-12899: value too large for column "JHELLER"."LAUNCH"."LAUNCH_TAG" (actual:
+33, maximum: 15)
+
+
+--Create error logging table.
+begin
+	dbms_errlog.create_error_log(dml_table_name => 'LAUNCH');
+end;
+/
+
+
+SQL> --Insert into LAUNCH and log errors.
+SQL> insert into launch(launch_id, launch_tag)
+  2  values (-1, 'A value too large for this column')
+  3  log errors into err$_launch
+  4  reject limit unlimited;
+
+0 rows created.
+
+
+--Error logging table.
+select ora_err_number$, ora_err_mesg$, launch_tag
+from err$_launch;
 
 
 
+---------------------------------------------------------------------------
+-- Returning
+---------------------------------------------------------------------------
 
-select * from propellant;
+--Insert a new row and display the new ID for the row.
+declare
+	v_launch_id number;
+begin
+	insert into launch(launch_id, launch_category)
+	values(-1234, 'deep space')
+	returning launch_id into v_launch_id;
 
-IGNORE_ROW_ON_DUPKEY_INDEX
-;
+	dbms_output.put_line('New Launch ID: '||v_launch_id);
+	rollback;
+end;
+/
 
-insert into propellant values(-1, 'Ammonia');
+--Return multiple values into a collection variable.
+--(Not shown in book.)
+declare
+	v_launch_ids sys.odcinumberlist;
+begin
+	update launch
+	set launch_category = 'deep space exploration'
+	where launch_category = 'deep space'
+	returning launch_id bulk collect into v_launch_ids;
+
+	dbms_output.put_line('Updated Launch ID #1: '||v_launch_ids(1));
+	rollback;
+end;
+/
 
 
 
