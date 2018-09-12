@@ -202,3 +202,199 @@ end;
 
 
 
+---------------------------------------------------------------------------
+-- TRUNCATE
+---------------------------------------------------------------------------
+
+--Create a table and insert some rows.
+create table truncate_test(a varchar2(4000));
+
+insert into truncate_test
+select lpad('A', 4000, 'A') from dual
+connect by level <= 10000;
+
+--Segment size and object IDs.
+select megabytes, object_id, data_object_id
+from
+(
+	select bytes/1024/1024 megabytes
+	from user_segments
+	where segment_name = 'TRUNCATE_TEST'
+) segments
+cross join
+(
+	select object_id, data_object_id
+	from user_objects
+	where object_name = 'TRUNCATE_TEST'
+) objects;
+
+
+--Truncate the table.
+--truncate table truncate_test;
+
+--(Re-run the above segments and objects query)
+
+
+
+---------------------------------------------------------------------------
+-- COMMIT, ROLLBACK, SAVEPOINT
+---------------------------------------------------------------------------
+
+
+--Insert temporary data to measure transactions.
+insert into launch(launch_id, launch_tag) values (-999, 'test');
+
+select used_urec from v$transaction;
+
+
+--Now get rid of that data.
+rollback;
+
+select used_urec from v$transaction;
+
+USED_UREC
+---------
+
+
+
+
+---------------------------------------------------------------------------
+-- ALTER SYSTEM
+---------------------------------------------------------------------------
+
+--Commonly used ALTER SYSTEM commands.
+alter system flush shared_pool;
+alter system flush buffer_cache;
+--This syntax is "SID,SERIAL#,INST_ID".
+alter system kill session '123,12345,@1' immediate;
+
+
+--Let users run a few specifc ALTER SYSTEM commands.
+create procedure sys.flush_shared_pool is
+begin
+	execute immediate 'alter system flush shared_pool';
+end;
+/
+
+grant execute on sys.flush_shared_pool to DEVELOPER_USERNAME;
+
+
+--How to run the command from that user.
+--(Not in book.)
+begin
+	sys.flush_shared_pool;
+end;
+/
+
+
+--Example of procedure to kill one specific user's sessions.
+--(Not shown in book.)
+create procedure sys.kill_app_user_sessions is
+begin
+	for sessions_to_kill in
+	(
+		select 'alter system kill session '''||sid||','||
+			serial#||',@'||inst_id||''' immediate' v_sql
+		from gv$session
+		where username = 'APPLICATION_USER'
+		order by 1
+	) loop
+		execute immediate sessions_to_kill.v_sql;
+	end loop;
+end;
+/
+
+
+
+---------------------------------------------------------------------------
+-- ALTER SESSION
+---------------------------------------------------------------------------
+
+--Change OPTIMIZER_INDEX_COST_ADJ at the session level.
+alter session set optimizer_index_cost_adj = 100;
+
+--Example of ALTER SESSION.
+--Use the SPACE schema by default.
+alter session set current_schema=space;
+--Allow parallel DML.
+alter session enable parallel dml;
+--Wait for adding space.
+alter session enable resumable;
+--Enable debugging in newly compiled programs.
+alter session set plsql_optimize_level = 1;
+
+
+
+---------------------------------------------------------------------------
+-- PL/SQL
+---------------------------------------------------------------------------
+
+--The most boring anonymous block possible.
+begin
+	null;
+end;
+/
+
+
+--Anonymous block that does something.
+declare
+	v_number number := 1;
+begin
+	dbms_output.put_line('Output: ' || to_char(v_number + 1));
+end;
+/
+
+Output: 2
+
+
+--SQL*Plus example:
+SQL> set serveroutput on
+SQL> exec dbms_output.put_line('test');
+test
+
+PL/SQL procedure successfully completed.
+
+
+--Not-so-randomly generate a number, since the seed is static.
+begin
+	dbms_random.seed(1234);
+	dbms_output.put_line(dbms_random.value);
+end;
+/
+
+.42789904690591504247349673921052414639
+
+
+--Gather stats for a table.
+begin
+	dbms_stats.gather_table_stats('SPACE', 'LAUNCH');
+end;
+/
+
+--Gather stats for a schema.
+begin
+	dbms_stats.gather_schema_stats('SPACE');
+end;
+/
+
+
+--Create and run a job that does nothing.
+begin
+	dbms_scheduler.create_job(
+		job_name   => 'test_job',
+		job_type   => 'plsql_block',
+		job_action => 'begin null; end;',
+		enabled    => true
+	);
+end;
+/
+
+--Job details.
+--(The first two rows may be empty because one-time jobs
+-- automatically drop themselves when they finish.)
+select * from dba_scheduler_jobs where job_name = 'TEST_JOB';
+select * from dba_scheduler_running_jobs where job_name = 'TEST_JOB';
+select * from dba_scheduler_job_run_details where job_name = 'TEST_JOB';
+
+
+     
