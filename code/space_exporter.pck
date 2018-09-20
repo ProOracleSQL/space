@@ -324,6 +324,13 @@ procedure generate_oracle_file is
 
 			--Metadata for tables:
 			v_metadata := get_metadata('TABLE', user, g_ordered_objects(i)) || ';';
+			--Special case for self-referencing key on Organization.
+			if g_ordered_objects(i) = 'ORGANIZATION' then
+				v_metadata := replace(v_metadata,
+					'REFERENCES "ORGANIZATION" ("ORG_CODE") ENABLE',
+					'REFERENCES "ORGANIZATION" ("ORG_CODE") DISABLE'
+				);
+			end if;
 			utl_file.put_line(v_handle, replace(v_metadata, chr(10)||'  ', chr(10)));
 			utl_file.new_line(v_handle);
 
@@ -388,6 +395,12 @@ procedure generate_oracle_file is
 					end if;
 				end if;
 			end loop;
+
+			--Enable self-referencing foreign keys.
+			if g_ordered_objects(i) = 'ORGANIZATION' then
+				utl_file.put_line(v_handle, chr(10)||chr(10)||
+					'ALTER TABLE "ORGANIZATION" ENABLE CONSTRAINT "ORGANIZATION_FK";');
+			end if;
 
 		end loop;
 

@@ -904,7 +904,12 @@ select
 		when org_class = 'O' then 'generic organization'
 		else 'ERROR - Unexpected value "'||org_class||'"'
 	end org_class,
-	parent_org_code,
+	--Convert multi-parent values into single-parent (the biggest parent).
+	case
+		when parent_org_code = 'MOTI/TMI' then 'MOTI'
+		when parent_org_code = 'HISD/LOR' then 'LOR'
+		else parent_org_code
+	end parent_org_code,
 	org_state_code,
 	org_location,
 	org_start_date,
@@ -1647,6 +1652,7 @@ values ('CMIK', 'Choson MIK', 'defense', 'KPA', 'KP', 'Pyongyang', null, null, '
 commit;
 
 alter table organization add constraint organization_pk primary key (org_code);
+alter table organization add constraint organization_fk foreign key (parent_org_code) references organization(org_code);
 
 
 --ORGANIZATION_ORG_TYPE (bridge table)
