@@ -247,7 +247,7 @@ insert into launch(launch_id, launch_tag) values (-999, 'test');
 select used_urec from v$transaction;
 
 
---Now get rid of that data.
+--Now get rid of the data.
 rollback;
 
 select used_urec from v$transaction;
@@ -329,7 +329,7 @@ alter session set plsql_optimize_level = 1;
 -- PL/SQL
 ---------------------------------------------------------------------------
 
---The most boring anonymous block possible.
+--The most boring anonymous block.
 begin
 	null;
 end;
