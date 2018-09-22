@@ -1,4 +1,4 @@
-SpaceDB v1.2.5
+SpaceDB v1.2.6
 ==============
 
 SpaceDB is a data set that contains all orbital and suborbital launches, all satellites, and related information.  It's based on data from the JSR Launch Vehicle Database, 2017 Dec 28 Edition.

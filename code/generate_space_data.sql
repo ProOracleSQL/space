@@ -1470,7 +1470,7 @@ select
 	--Split into category and status
 	case
 		when substr(launch_code, 1, 1) = 'O' then 'orbital'
-		when substr(launch_code, 1, 1) = 'M' then 'miltary missile'
+		when substr(launch_code, 1, 1) = 'M' then 'military missile'
 		when substr(launch_code, 1, 1) = 'T' then 'test rocket'
 		when substr(launch_code, 1, 1) = 'A' then 'atmospheric rocket'
 		when substr(launch_code, 1, 1) = 'S' then 'suborbital rocket'
@@ -2098,7 +2098,7 @@ order by
 		when launch_category = 'sounding rocket'        then 7
 		when launch_category = 'test rocket'            then 8
 		when launch_category = 'ballistic missile test' then 9
-		when launch_category = 'miltary missile'        then 10
+		when launch_category = 'military missile'        then 10
 		else 999999
 	end,
 	launch_tag
