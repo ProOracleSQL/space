@@ -756,16 +756,16 @@ reject limit unlimited
 --WARNING: This file is completely manual.  The "numbers" column will need to be split.
 create table satellite_staging
 (
-	satcat         varchar(8),
-	cospar         varchar(15),
-	official_name  varchar(41),
-	secondary_name varchar(25),
-	owner_operator varchar(13),
-	launch_date    varchar(12),
-	current_status varchar(17),
-	status_date    varchar(13),
-	orbit_date     varchar(12),
-	orbit_class    varchar(8),
+	satcat           varchar(8),
+	cospar           varchar(15),
+	official_name    varchar(41),
+	secondary_name   varchar(25),
+	owner_operator   varchar(13),
+	launch_date      varchar(12),
+	current_status   varchar(17),
+	status_date      varchar(13),
+	orbit_epoch_date varchar(12),
+	orbit_class      varchar(8),
 	--Poorly formatted values for orbit_period, perigee, apogee, and inclination.
 	numbers        varchar(100)
 )
@@ -782,17 +782,17 @@ organization external
 		missing field values are null
 		reject rows with all null fields
 		(
-			satcat         (1:8) char(8),
-			cospar         (9:23) char(15),
-			official_name  (24:63) char(41),
-			secondary_name (65:94) char(25),
-			owner_operator (90:106) char(13),
-			launch_date    (103:118) char(12),
-			current_status (115:134) char(17),
-			status_date    (132:147) char(13),
-			orbit_date     (145:159) char(12),
-			orbit_class    (157:167) char(8),
-			numbers        (165:267) char(100)
+			satcat           (1:8) char(8),
+			cospar           (9:23) char(15),
+			official_name    (24:63) char(41),
+			secondary_name   (65:94) char(25),
+			owner_operator   (90:106) char(13),
+			launch_date      (103:118) char(12),
+			current_status   (115:134) char(17),
+			status_date      (132:147) char(13),
+			orbit_epoch_date (145:159) char(12),
+			orbit_class      (157:167) char(8),
+			numbers          (165:267) char(100)
 		)
 	)
 	location ('satcat.txt')
@@ -1603,7 +1603,7 @@ select
 		else current_status
 	end current_status,
 	jsr_to_date(status_date) status_date,
-	jsr_to_date(orbit_date) orbit_date,
+	jsr_to_date(orbit_epoch_date) orbit_epoch_date,
 	to_number(regexp_substr(numbers, '[-0-9.]+', 1, 1)) orbit_period,
 	to_number(regexp_substr(numbers, '[-0-9.]+', 1, 2)) perigee,
 	to_number(regexp_substr(numbers, '[-0-9.]+', 1, 3)) apogee,
@@ -1621,7 +1621,7 @@ from
 		launch_date,
 		current_status,
 		status_date,
-		orbit_date,
+		orbit_epoch_date,
 		replace(replace(numbers, '-'), 'x') numbers,
 		orbit_class,
 		replace(owner_operator, '?') owner_operator_org_code_list
@@ -2159,7 +2159,7 @@ select
 	) launch_id,
 	current_status,
 	status_date,
-	orbit_date,
+	orbit_epoch_date,
 	orbit_period,
 	perigee,
 	apogee,
