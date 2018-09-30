@@ -13,8 +13,11 @@ select * from v$sqlcommand where lower(command_name) like '%alter%'
 
 --Create a simple table and see some of its metadata.
 create table simple_table(a number, b varchar2(100), c date);
+
 select dbms_metadata.get_ddl('TABLE', 'SIMPLE_TABLE') from dual;
+
 select * from user_tables where table_name = 'SIMPLE_TABLE';
+
 select * from user_tab_columns where table_name = 'SIMPLE_TABLE';
 
 
@@ -402,4 +405,160 @@ quota unlimited on my_application_tablespace;
 -- Sequence
 ---------------------------------------------------------------------------
 
+--Create and alter a sequence.
+create sequence some_sequence;
+alter sequence some_sequence restart start with 1;
 
+
+--Repeatedly call a sequence to increase the value.
+--(Not shown in book.)
+declare
+	v_sequence_value number;
+begin
+	for i in 100 loop
+		v_sequence_value := some_sequence.nextval;
+	end loop;
+end;
+/
+
+
+
+---------------------------------------------------------------------------
+-- Synonym
+---------------------------------------------------------------------------
+
+--Create synonym example.
+create synonym launch for space.launch;
+
+
+
+---------------------------------------------------------------------------
+-- Materialized View
+---------------------------------------------------------------------------
+
+--Ideal solution using (non-existent) assertions.
+--LAUNCH.LAUNCH_DATE must be before SATELLITE.EPOCH_DATE.
+--(Use "-1" because there are small deviations in times.)
+create assertion launch_before_epoch_date as check
+(
+	select *
+	from satellite
+	join launch
+		on satellite.launch_id = launch.launch_id
+	where satellite.launch_id = launch.launch_id
+		and launch.launch_date - 1 < orbit_epoch_date
+);
+
+--Create materialized view logs on base tables.
+create materialized view log on satellite with rowid;
+create materialized view log on launch with rowid;
+
+
+--Materialized view for the condition we don't want to happen.
+create materialized view satellite_bad_epoch_mv
+refresh fast on commit as
+select satellite.orbit_epoch_date, launch.launch_date,
+	satellite.rowid satellite_rowid,
+	launch.rowid launch_rowid
+from satellite, launch
+where satellite.launch_id = launch.launch_id
+	and orbit_epoch_date < launch.launch_date - 1;
+
+
+--Add constraint that prevents new rows.
+alter table satellite_bad_epoch_mv add constraint
+	satellite_bad_epoch_mv_no_row check (launch_rowid is null)
+	enable novalidate;
+
+
+--Set a bad value.
+update satellite
+set orbit_epoch_date = orbit_epoch_date - 100
+where norad_id = '000001';
+
+commit;
+
+
+
+---------------------------------------------------------------------------
+-- Database Link
+---------------------------------------------------------------------------
+
+--Create a database link to the same database, for testing.
+create database link myself
+connect to my_user_name
+identified by "my_password"
+using '(description=(address=(protocol=tcp)(host=localhost)
+(port=1521))(connect_data=(server=dedicated)(sid=orcl)))';
+
+select * from dual@myself;
+
+DUMMY
+-----
+X
+
+
+
+---------------------------------------------------------------------------
+-- Other Schema Objects
+---------------------------------------------------------------------------
+
+--Comment example.
+--(Not shown in book.)
+comment on table launch is 'Orbital and suborbital launches from https://github.com/ProOracleSQL/space, based on the JSR Launch Vehicle Database';
+
+
+
+---------------------------------------------------------------------------
+-- Global Objects
+---------------------------------------------------------------------------
+
+--Context example.
+select sys_context('USERENV', 'host') from dual;
+
+
+
+
+---------------------------------------------------------------------------
+-- Grant and Revoke
+---------------------------------------------------------------------------
+
+--Powerful grant, but does not extend to future objects on space schema.
+grant all privileges on some_schema.some_table to some_user;
+
+
+--Roles granted directly or indirectly to the current user.
+select *
+from dba_role_privs
+connect by prior granted_role = grantee
+start with grantee = user
+order by 1,2,3;
+
+
+--System privileges granted directly or indirectly to current user.
+select *
+from dba_sys_privs
+where grantee = user
+	or grantee in
+	(
+		select granted_role
+		from dba_role_privs
+		connect by prior granted_role = grantee
+		start with grantee = user
+	)
+order by 1,2,3;
+
+
+--Object privileges granted directly or indirectly to current user.
+--(Not shown in book.)
+select *
+from dba_tab_privs
+where grantee = user
+	or grantee in
+	(
+		select granted_role
+		from dba_role_privs
+		connect by prior granted_role = grantee
+		start with grantee = user
+	)
+order by 1,2,3,4;

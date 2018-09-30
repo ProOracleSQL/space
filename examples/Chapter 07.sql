@@ -114,13 +114,15 @@ select null from dual;
 
 set pagesize 9999;
 set colsep "  ";
-column orbit_date format a10;
+column launch_date format a10;
 column official_name format a23;
 
 --Sort, using almost all of the options.
-select to_char(orbit_date, 'YYYY-MM-DD') orbit_date, official_name
+select to_char(launch_date, 'YYYY-MM-DD') launch_date, official_name
 from satellite
-order by orbit_date desc nulls last, 2;
+join launch
+	on satellite.launch_id = launch.launch_id
+order by launch_date desc nulls last, 2;
 
 
 ---------------------------------------------------------------------------
@@ -431,45 +433,51 @@ connect by level <= regexp_count(csv, ',') + 1;
 --Row limiting clause.
 --First 3 satellites.
 select
-	to_char(orbit_date, 'YYYY-MM-DD') orbit_date,
+	to_char(launch_date, 'YYYY-MM-DD') launch_date,
 	official_name
 from satellite
-order by orbit_date, official_name
+join launch
+	on satellite.launch_id = launch.launch_id
+order by launch_date, official_name
 fetch first 3 rows only;
 
 
 --Using the old ROWNUM method.
 --First 3 satellites.
-select orbit_date, official_name, rownum
+select launch_date, official_name, rownum
 from
 (
 	select
-		to_char(orbit_date, 'YYYY-MM-DD') orbit_date,
+		to_char(launch_date, 'YYYY-MM-DD') launch_date,
 		official_name
 	from satellite
-	order by orbit_date, official_name
+	join launch
+		on satellite.launch_id = launch.launch_id
+	order by launch_date, official_name
 )
 where rownum <= 3;
 
 
 --Using the ROW_NUMBER method.
 --First 2 satellites of each year.
-select orbit_date, official_name
+select launch_date, official_name
 from
 (
 	select
-		to_char(orbit_date, 'YYYY-MM-DD') orbit_date,
+		to_char(launch_date, 'YYYY-MM-DD') launch_date,
 		official_name,
 		row_number() over
 		(
-			partition by trunc(orbit_date, 'year')
-			order by orbit_date
+			partition by trunc(launch_date, 'year')
+			order by launch_date
 		) first_n_per_year
 	from satellite
-	order by orbit_date, official_name
+	join launch
+		on satellite.launch_id = launch.launch_id
+	order by launch_date, official_name
 )
 where first_n_per_year <= 2
-order by orbit_date, official_name;
+order by launch_date, official_name;
 
 
 
