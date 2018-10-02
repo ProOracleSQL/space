@@ -11,7 +11,7 @@ select * from v$sqlcommand where lower(command_name) like '%alter%'
 -- Table
 ---------------------------------------------------------------------------
 
---Create a simple table and see some of its metadata.
+--Create a simple table and see its metadata.
 create table simple_table(a number, b varchar2(100), c date);
 
 select dbms_metadata.get_ddl('TABLE', 'SIMPLE_TABLE') from dual;
@@ -22,8 +22,7 @@ select * from user_tab_columns where table_name = 'SIMPLE_TABLE';
 
 
 --Temporary table example.
-
---Create a temporary table that hold data until next commit.
+--Create a temporary table that holds data until next commit.
 create global temporary table temp_table(a number)
 on commit delete rows;
 
@@ -87,6 +86,7 @@ create table identity_table
 );
 
 insert into identity_table(c) values(1);
+
 select * from identity_table;
 
 
@@ -128,6 +128,7 @@ create table parallel_table(a number) parallel;
 
 --This statement on a NOT NULL column can use an index.
 select count(distinct satellite_id) from satellite;
+
 --This statement on a nullable column cannot use an index.
 select count(distinct launch_id) from satellite;
 
@@ -151,7 +152,7 @@ insert into organization_temp
 select * from organization;
 
 
---Try to enable constraint that isn't valid.
+--Try to enable a constraint that isn't valid.
 alter table organization_temp
 enable constraint organization_temp_uq
 exceptions into exceptions;
@@ -174,7 +175,7 @@ enable novalidate constraint organization_temp_uq
 using index organization_temp_idx1;
 
 
---Create new table to demonstration parallel constraint enabling.
+--Create new table to demonstrate parallel constraint enabling.
 --(NOT SHOWN IN BOOK)
 create table organization_parallel nologging as
 select * from organization;
@@ -209,7 +210,7 @@ alter table organization_parallel
 add constraint organization_parallel_fk foreign key (parent_org_code)
 references organization_parallel(org_code) disable;
 
---Validate it, which makes it run in parallel.
+--Validate constraint, which runs in parallel.
 alter table organization_parallel
 modify constraint organization_parallel_fk validate;
 
@@ -445,8 +446,7 @@ create assertion launch_before_epoch_date as check
 	from satellite
 	join launch
 		on satellite.launch_id = launch.launch_id
-	where satellite.launch_id = launch.launch_id
-		and launch.launch_date - 1 < orbit_epoch_date
+	where launch.launch_date - 1 < orbit_epoch_date
 );
 
 --Create materialized view logs on base tables.
