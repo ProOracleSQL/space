@@ -80,7 +80,7 @@ fetch first 3 rows only;
 
 
 ---------------------------------------------------------------------------
--- BLOCKS AND ROW-LEVEL LOCKING
+-- Storage Structures
 ---------------------------------------------------------------------------
 
 --Find who is blocking a session.
@@ -90,18 +90,34 @@ where final_blocking_session is not null
 order by v$session.final_blocking_session;
 
 
+--Purge recycle bin
+purge user_recyclebin;
+purge dba_recyclebin;
+
+
+--Add data file.
+alter tablespace my_tablespace add datafile 'C:\APP\...\FILE_X.DBF'
+size 100m
+autoextend on
+next 100m
+maxsize unlimited;
 
 
 
+---------------------------------------------------------------------------
+-- Cache
+---------------------------------------------------------------------------
 
-
-
-
-
-
-
---Check the increment.
-select increment_by, dba_data_files.*
-from dba_data_files;
-
-
+--Buffer cache hit ratio.
+select 1 - (physical_reads / (consistent_gets + db_block_gets)) ratio
+from (select name, value from v$sysstat)
+pivot
+(
+	sum(value)
+	for (name) in
+	(
+		'physical reads cache' physical_reads,
+		'consistent gets from cache' consistent_gets,
+		'db block gets from cache' db_block_gets
+	)
+);
