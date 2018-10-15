@@ -82,5 +82,61 @@ rename bad_table_name to good_table_name;
 
 
 
+---------------------------------------------------------------------------
+-- Choose Good Names
+---------------------------------------------------------------------------
 
+
+--Give inline views lots of space.
+select * from
+(
+	--Good comment here.
+	select * from dual
+) good_name;
+
+--Don't cram everything together:
+select * from (select * from dual);
+
+
+--Typical way to format a procedure.
+create or replace procedure proc1 is
+begin
+	null;
+end;
+/
+
+--Weird way to format a procedure.
+create or replace procedure proc1 is begin null; end;
+/
+
+
+
+---------------------------------------------------------------------------
+-- Make Bugs Obvious
+---------------------------------------------------------------------------
+
+--Example of bad exception handling that ignores all errors.
+begin
+	--Do something here...
+	null;
+exception
+	when others then null;
+end;
+/
+
+--Example of potentially bad exception handling.
+begin
+	--Do something here...
+	null;
+exception
+	when others then
+		log_error;
+end;
+/
+
+
+--Example of honest code:
+--This works, but I don't know why!
+select date '9999-12-31' dangerous_last_date
+from dual;
 
