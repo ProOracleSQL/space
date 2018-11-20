@@ -8,7 +8,7 @@ begin
 end;
 /
 
---Broken PL/SQL block that compress table using static SQL.
+--Broken PL/SQL block that compresses table using static SQL.
 --This block raises a PL/SQL compilation error.
 begin
 	alter table launch move compress;
@@ -29,7 +29,7 @@ begin
 end;
 /
 
-select get_count('ORGANIZATION') row_count from dual;
+select get_count('LAUNCH') row_count from dual;
 
 
 --(NOT SHOWN IN BOOK):
@@ -121,7 +121,7 @@ from dual;
 begin
 	execute immediate
 	'
-		select ''1'' a from dual
+		select ''A'' a from dual
 	';
 end;
 /
@@ -130,7 +130,7 @@ end;
 begin
 	execute immediate
 	q'[
-		select '1' a from dual
+		select 'A' a from dual
 	]';
 end;
 /
