@@ -1,7 +1,5 @@
-
-
 ---------------------------------------------------------------------------
--- Batch size performance with sequences
+-- O(1/N) - Batch size performance with sequences
 ---------------------------------------------------------------------------
 
 
@@ -73,6 +71,11 @@ end;
 --#4: Look at results.
 --Create a chart of the data and investigate curve.
 select* from sequence_time_results order by cache_size;
+
+
+
+
+
 
 
 
