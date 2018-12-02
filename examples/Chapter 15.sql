@@ -7,16 +7,16 @@ create table good_eav
 (
 	id            number primary key,
 	name          varchar2(4000),
-	number_value  number,
 	string_value  varchar2(4000),
+	number_value  number,
 	date_value    date
 );
 
-insert into good_eav(id, name, number_value)
-values (1, 'High Score', 11);
-
 insert into good_eav(id, name, string_value)
-values (2, 'Name', 'Eliver');
+values (1, 'Name', 'Eliver');
+
+insert into good_eav(id, name, number_value)
+values (2, 'High Score', 11);
 
 insert into good_eav(id, name, date_value)
 values (3, 'Date of Birth', date '2011-04-28');
@@ -30,12 +30,12 @@ create table bad_eav
 	value  varchar2(4000)
 );
 
-insert into bad_eav values (1, 'High Score'   , 11);
 insert into bad_eav values (2, 'Name'         , 'Eliver');
+insert into bad_eav values (1, 'High Score'   , 11);
 insert into bad_eav values (3, 'Date of Birth', '2011-04-28');
 
 
---Simple query against stringly-typed EAV will likely fail.
+--Simple query against stringly-typed EAV that will likely fail.
 select *
 from bad_eav
 where name = 'Date of Birth'
@@ -49,7 +49,7 @@ where name = 'Date of Birth'
 	and to_date(value, 'YYYY-MM-DD') = date '2011-04-28';
 
 
---Type safe way to query a stringly-typed EAV.
+--Type- safe way to query a stringly-typed EAV.
 select *
 from
 (
@@ -67,7 +67,6 @@ where to_date(value, 'YYYY-MM-DD') = date '2011-04-28';
 ---------------------------------------------------------------------------
 
 --Object relational example.
---(NOT SHOWN IN BOOK.)
 --Object type to hold a record of satellite data.
 create or replace type satellite_type is object
 (
@@ -76,10 +75,11 @@ create or replace type satellite_type is object
 	---Add more columns here.
 );
 
---Nested table to hold multiple instances of the type.
+--Nested table to hold multiple records.
 create or replace type satellite_nt is table of satellite_type;
 
 --Use the nested table type in a table.
+--(NOT SHOWN IN BOOK.)
 create table object_relational_launch
 (
 	launch_id  number,
@@ -123,7 +123,7 @@ select trunc(sysdate) the_date from dual;
 --DATE literal versus TO_DATE.
 select
 	date '2000-01-01' date_literal,
-	to_date('01-JAN-00', 'DD-MON-RR') date_from_string,
+	to_date('01-JAN-00', 'DD-MON-RR') date_from_string
 from dual;
 
 
