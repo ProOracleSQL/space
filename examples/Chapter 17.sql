@@ -2,7 +2,7 @@
 -- Execution Plans and Declarative Coding
 ---------------------------------------------------------------------------
 
---In declarative SQL, these SYSDATEs will always generate the same value.
+--In declarative SQL, these SYSDATEs generate the same value.
 select sysdate date1, sysdate date2 from dual;
 
 --In imperative PL/SQL, the two calls to SYSDATE on the same line will
@@ -33,18 +33,17 @@ select *
 from table(dbms_xplan.display(format => 'basic +rows +cost'));
 
 
+---------------------------------------------------------------------------
+-- Available Operations (What Execution Plan Decisions Oracle Can Make)
+---------------------------------------------------------------------------
 
+--Recently used combinations of operations and options.
+select operation, options, count(*)
+from gv$sql_plan
+group by operation, options
+order by operation, options;
 
-
-alter session set current_schema=space;
-
---Generate execution plan.
-explain plan for
-select /*+ full(launch) */ * from launch where launch_id = 1;
-
---Display execution plan.
-select *
-from table(dbms_xplan.display(format => 'basic +rows +cost'));
-
-
+--All available Operation names and options.  (Run as SYS.)
+select * from sys.x$xplton;
+select * from sys.x$xpltoo;
 
