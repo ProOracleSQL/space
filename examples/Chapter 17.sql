@@ -47,3 +47,68 @@ order by operation, options;
 select * from sys.x$xplton;
 select * from sys.x$xpltoo;
 
+
+
+---------------------------------------------------------------------------
+-- Parallel
+---------------------------------------------------------------------------
+
+--Fully parallel SQL statement.
+alter session enable parallel dml;
+
+explain plan for
+insert into engine
+select /*+ parallel(8) */ * from engine;
+
+select * from table(dbms_xplan.display);
+
+
+--Partially parallel SQL statement.
+alter session enable parallel dml;
+
+explain plan for
+insert into engine
+select /*+ parallel(engine, 8) */ * from engine;
+
+select * from table(dbms_xplan.display);
+
+
+
+---------------------------------------------------------------------------
+-- Partition
+---------------------------------------------------------------------------
+
+--Partition execution plan example.
+explain plan for select * from sys.wri$_optstat_synopsis$;
+
+select * from table(dbms_xplan.display);
+
+
+
+---------------------------------------------------------------------------
+-- Other
+---------------------------------------------------------------------------
+
+--Filter example.
+explain plan for
+select *
+from launch
+where launch_id = nvl(:p_launch_id, launch_id);
+
+select * from table(dbms_xplan.display(format => 'basic'));
+
+
+
+---------------------------------------------------------------------------
+-- Cardinality
+---------------------------------------------------------------------------
+
+
+select *
+from space.launch;
+
+
+
+
+
+
