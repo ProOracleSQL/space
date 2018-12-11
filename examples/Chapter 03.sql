@@ -1,4 +1,38 @@
 ---------------------------------------------------------------------------
+-- Create useful test data
+---------------------------------------------------------------------------
+
+--Generate three rows.
+select level a from dual connect by level <= 3;
+
+
+--Generate specific data.
+select 1 a, 2 b from dual union all
+select 0 a, 0 b from dual;
+
+
+
+---------------------------------------------------------------------------
+-- Create large test data
+---------------------------------------------------------------------------
+
+--Raises: ORA-30009: Not enough memory for CONNECT BY operation
+select count(*) from
+(
+	select level from dual connect by level <= 999999999
+);
+
+
+--Generate large amounts of data.
+create table test1(a number);
+insert into test1 select level from dual connect by level <= 100000;
+insert into test1 select * from test1;
+insert into test1 select * from test1;
+insert into test1 select * from test1;
+...
+
+
+---------------------------------------------------------------------------
 -- How to build automated tests
 ---------------------------------------------------------------------------
 
@@ -63,7 +97,6 @@ end;
 
 
 
-
 ---------------------------------------------------------------------------
 -- Complete
 ---------------------------------------------------------------------------
@@ -83,7 +116,6 @@ end;
 --This is the query that fails, or is slow.
 select *
 from simple_table;
-
 
 
 --Nondefault parameters.
@@ -169,7 +201,7 @@ order by 1;
 -- Other Oracle tools for inspecting databases
 ---------------------------------------------------------------------------
 
---Query
+--Byte size of values:
 select
 	vsize(0) zero_size,
 	vsize(1) one_size,
