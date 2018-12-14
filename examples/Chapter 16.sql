@@ -2,6 +2,8 @@
 -- O(1/N) - Batch size performance with sequences
 ---------------------------------------------------------------------------
 
+--(NOT SHOWN IN BOOK).
+
 --Test sequence size and if it matters.
 
 --#1A: Create tables to hold data.
@@ -127,19 +129,32 @@ select * from limit_time_results order by limit_size;
 
 
 ---------------------------------------------------------------------------
+-- Sorting
+---------------------------------------------------------------------------
+
+--Create a table and query for min and max values.
+create table min_max(a number primary key);
+
+--Full table scan or index fast full scan - O(N).
+select min(a), max(a) from min_max;
+
+--Two min/max index accesses - O(2*LOG(N)).
+select
+	(select min(a) from min_max) min,
+	(select max(a) from min_max) max
+from dual;
+
+
+
+---------------------------------------------------------------------------
 -- Gathering Statistics
 ---------------------------------------------------------------------------
 
---Compare APPROX_COUNT_DISTINCT with a normal count.
+--Compare APPROX_COUNT_DISTINCT with a regular COUNT.
 select
 	approx_count_distinct(launch_date) approx_distinct,
 	count(distinct launch_date)        exact_distinct
 from launch;
-
-APPROX_DISTINCT  EXACT_DISTINCT
----------------  --------------
-          61745           60401
-;
 
 
 
