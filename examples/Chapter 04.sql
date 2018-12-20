@@ -12,6 +12,7 @@ select
 from dual;
 
 
+--(NOT SHOWN IN BOOK)
 --This syntax is valid, but is ambiguous according to the syntax diagrams in the manual.
 --Is the first value "1" "-" "1", or is it scientific notation without the optional "E"?
 select
