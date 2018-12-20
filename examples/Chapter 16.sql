@@ -159,7 +159,7 @@ from launch;
 
 
 ---------------------------------------------------------------------------
--- O(N^2) – Cross Join, Nested Loops, Other
+-- O(N^2) – Cross Join, Nested Loops, Other Operations
 ---------------------------------------------------------------------------
 
 --(NOT SHOWN IN BOOK)
@@ -193,6 +193,11 @@ end;
 
 select * from union_time_results order by union_size desc;
 
+
+
+---------------------------------------------------------------------------
+-- O(N^2) – Cross Join, Nested Loops, Other Operations
+---------------------------------------------------------------------------
 
 --Time to parse nested CTEs.
 --This seems to run in N!, or something similar.
