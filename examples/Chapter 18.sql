@@ -80,31 +80,107 @@ select column_value a from table(sys.odcivarchar2list('A','B','C'));
 
 
 ---------------------------------------------------------------------------
--- 
+-- Measure database performance
 ---------------------------------------------------------------------------
 
+--(NOT SHOWN IN BOOK).
+--Time models.
+select * from v$sys_time_model;
+select * from v$sess_time_model;
 
 
+--Wait events.
+select nvl(event, 'CPU') event, gv$active_session_history.*
+from gv$active_session_history;
+
+
+--(NOT SHOWN IN BOOK).
+--Other examples of using the EVENT column.
+select nvl(event, 'CPU') event, dba_hist_active_sess_history.* from dba_hist_active_sess_history;
+select event, gv$session.* from gv$session;
+
+
+--Statistics.
+--Session that generated the most redo.
+select round(value/1024/1024) redo_mb, sid, name
+from v$sesstat
+join v$statname
+	on v$sesstat.statistic# = v$statname.statistic#
+where v$statname.display_name = 'redo size'
+order by value desc;
+
+
+--Metrics.
+--Current I/O usage in megabytes per second.
+select begin_time, end_time, round(value) mb_per_second
+from gv$sysmetric
+where metric_name = 'I/O Megabytes per Second';
+
+
+
+---------------------------------------------------------------------------
+-- Automatic Workload Repository (AWR) and Active Session History (ASH)
+---------------------------------------------------------------------------
+
+--Repeatedly count a large(ish) table using a non-indexed column.
+declare
+	v_count number;
+begin
+	for i in 1 .. 100000 loop
+		select count(*)
+		into v_count
+		from satellite
+		where orbit_class = 'Polar';
+	end loop;
+	dbms_workload_repository.create_snapshot;
+end;
+/
+
+
+--Find snapshot for generating AWR report.
 select *
 from dba_hist_snapshot
 order by begin_interval_time desc;
 
---One-node AWR report:
+
+--Generate AWR report.
 select *
 from table(dbms_workload_repository.awr_report_html(
 	l_dbid     => 3483962617,
 	l_inst_num => 1,
-	l_bid      => 6352,
-	l_eid      => 6353
+	l_bid      => 6395,
+	l_eid      => 6396
 ));
 
 
-select * from V$SYS_TIME_MODEL;
+--Generate ADDM task.
+declare
+	v_task_name varchar2(100) := 'Test Task';
+begin
+	dbms_addm.analyze_db
+	(
+		task_name      => v_task_name,
+		begin_snapshot => 6395,
+		end_snapshot   => 6396
+	);
+end;
+/
 
 
+--Create and execute SQL Tuning Advisor task
+declare
+	v_task varchar2(64);
+begin
+	v_task := dbms_sqltune.create_tuning_task(
+		sql_id => '5115f2tc6809t');
+	dbms_sqltune.execute_tuning_task(task_name => v_task);
+	dbms_output.put_line('Task name: '||v_task);
+end;
+/
 
 
-
+--View tuning task report.
+select dbms_sqltune.report_tuning_task('TASK_18972') from dual;
 
 
 
@@ -112,17 +188,28 @@ select * from V$SYS_TIME_MODEL;
 -- SQL Tuning – Finding Slow SQL
 ---------------------------------------------------------------------------
 
-
---All queries that are currently running.
-select elapsed_time/1000000 seconds, executions, users_executing, parsing_schema_name, gv$sql.*
+--All SQL statements that are currenty running.
+select
+	elapsed_time/1000000 seconds,
+	executions,
+	users_executing,
+	parsing_schema_name,
+	sql_fulltext,
+	sql_id,
+	gv$sql.*
 from gv$sql
 where users_executing > 0
 order by elapsed_time desc;
 
 
+
+
+
 select *
 from dba_hist_sqltext;
 
+
+select * from v$active_session_history;
 
 
 --Estimate: 1%, 705
