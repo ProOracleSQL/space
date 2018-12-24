@@ -185,7 +185,7 @@ select dbms_sqltune.report_tuning_task('TASK_18972') from dual;
 
 
 ---------------------------------------------------------------------------
--- SQL Tuning – Finding Slow SQL
+-- Find currently-running slow SQL
 ---------------------------------------------------------------------------
 
 --All SQL statements that are currenty running.
@@ -203,26 +203,100 @@ order by elapsed_time desc;
 
 
 
+---------------------------------------------------------------------------
+-- SQL Tuning – Finding Execution Plans
+---------------------------------------------------------------------------
 
-
+--All satellites and their launch.
+explain plan for
 select *
-from dba_hist_sqltext;
+from satellite
+left join launch
+	on satellite.launch_id = launch.launch_id;
+
+select * from table(dbms_xplan.display);
 
 
-select * from v$active_session_history;
+--View all inactive rows of an adaptive plan.
+select * from table(dbms_xplan.display(format => '+adaptive'));
 
 
---Estimate: 1%, 705
-select *
-from space.launch
-where to_char(launch_date, 'YYYY') = '1970';
 
-select count(*) from space.launch;
+---------------------------------------------------------------------------
+-- DBMS_XPLAN functions
+---------------------------------------------------------------------------
 
-select dbms_stats.create_extended_stats('SPACE', 'LAUNCH', '(to_char(launch_date, ''YYYY''))')
-from dual;
+--FORMAT options.
+select * from table(dbms_xplan.display(format => 'basic +rows'));
+select * from table(dbms_xplan.display(format => 'typical -rows'));
 
+
+--Display the Outline Data.  (Run "explain plan for" first.)
+select * from table(dbms_xplan.display(format => '+outline'));
+
+
+--(NOT SHOWN IN BOOK)
+--Find all possible Note values.
+select sql_id, other_xml
+from gv$sql_plan
+where
+	replace(replace(replace(
+		other_xml
+		, '<info type="adaptive_plan" note="y">yes</info>', '') --adaptive plans
+		, '<info type="dynamic_sampling" note="y">', '') --dynamic sampling (always a number)
+		, '<info type="cardinality_feedback" note="y">yes</info>', '') --cardinality feedback
+	like '%note="y"%'
+and rownum <= 5;
+
+
+
+---------------------------------------------------------------------------
+-- SQL Tuning – Finding Slow Operations and Actual Cardinalities
+---------------------------------------------------------------------------
+
+drop table launch2;
+alter system flush shared_pool;
+
+--Create new LAUNCH table, but gather stats at wrong time.
+create table launch2 as select * from space.launch where 1=2;
 begin
-	dbms_stats.gather_table_stats('SPACE', 'LAUNCH');
+	dbms_stats.gather_table_stats(user, 'launch2');
 end;
 /
+insert into launch2 select * from space.launch;
+commit;
+
+--Distinct dates a satellite was launched.
+select /*+ gather_plan_statistics */ count(distinct launch_date)
+from launch2 join space.satellite using (launch_id);
+
+--Find the SQL_ID.
+select *
+from gv$sql
+where sql_fulltext like '%select%launch2%'
+	and sql_fulltext not like '%quine%';
+
+
+--First execution has NESTED LOOPS SEMI and bad cardinalities.
+select * from table(dbms_xplan.display_cursor(
+	sql_id => '2wusnw2fbpdrq',
+	format => 'iostats last'));
+
+
+
+--Re-gather stats, flush shared pool, re-run query.
+begin
+	dbms_stats.gather_table_stats(user, 'launch2');
+end;
+/
+alter system flush shared_pool;
+
+--Distinct dates a satellite was launched.
+select /*+ gather_plan_statistics */ count(distinct launch_date)
+from launch2 join space.satellite using (launch_id);
+
+
+--Second execution has HASH JOIN, better cardinalities, faster.
+select * from table(dbms_xplan.display_cursor(
+	sql_id => '2wusnw2fbpdrq',
+	format => 'iostats last'));
