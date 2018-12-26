@@ -251,31 +251,29 @@ and rownum <= 5;
 
 
 ---------------------------------------------------------------------------
--- SQL Tuning – Finding Slow Operations and Actual Cardinalities
+-- Find actual values - GATHER_PLAN_STATISTICS
 ---------------------------------------------------------------------------
 
-drop table launch2;
-alter system flush shared_pool;
+--Create LAUNCH2 table but gather stats at wrong time.
+create table launch2 as select * from launch where 1=2;
 
---Create new LAUNCH table, but gather stats at wrong time.
-create table launch2 as select * from space.launch where 1=2;
 begin
 	dbms_stats.gather_table_stats(user, 'launch2');
 end;
 /
-insert into launch2 select * from space.launch;
+
+insert into launch2 select * from launch;
+
 commit;
+
 
 --Distinct dates a satellite was launched.
 select /*+ gather_plan_statistics */ count(distinct launch_date)
-from launch2 join space.satellite using (launch_id);
+from launch2 join satellite using (launch_id);
+
 
 --Find the SQL_ID.
-select *
-from gv$sql
-where sql_fulltext like '%select%launch2%'
-	and sql_fulltext not like '%quine%';
-
+select * from gv$sql where sql_fulltext like '%select%launch2%';
 
 --First execution has NESTED LOOPS SEMI and bad cardinalities.
 select * from table(dbms_xplan.display_cursor(
@@ -283,20 +281,41 @@ select * from table(dbms_xplan.display_cursor(
 	format => 'iostats last'));
 
 
-
 --Re-gather stats, flush shared pool, re-run query.
 begin
-	dbms_stats.gather_table_stats(user, 'launch2');
+	dbms_stats.gather_table_stats(user, 'launch2',
+		no_invalidate => false);
 end;
 /
-alter system flush shared_pool;
 
 --Distinct dates a satellite was launched.
 select /*+ gather_plan_statistics */ count(distinct launch_date)
-from launch2 join space.satellite using (launch_id);
-
+from launch2 join satellite using (launch_id);
 
 --Second execution has HASH JOIN, better cardinalities, faster.
 select * from table(dbms_xplan.display_cursor(
 	sql_id => '2wusnw2fbpdrq',
 	format => 'iostats last'));
+
+
+
+---------------------------------------------------------------------------
+-- Find actual values - Real-Time SQL Monitor Report
+---------------------------------------------------------------------------
+
+--Ridiculously bad cross join.  (Run in separate session.)
+select /*+ parallel(64) */ count(*) from launch,launch;
+
+--Find the SQL_ID, while the previous statement is running.
+select *
+from gv$sql where sql_fulltext like '%launch,launch%'
+	and users_executing > 0;
+
+--Generate report.
+select dbms_sqltune.report_sql_monitor('242q2tafkqamm') from dual;
+
+
+--Generate Active report.
+select dbms_sqltune.report_sql_monitor('242q2tafkqamm',
+	type => 'active')
+from dual;
