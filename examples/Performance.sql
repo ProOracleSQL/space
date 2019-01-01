@@ -507,6 +507,30 @@ end;
 */
 
 
+
+--------------------------------------------------------------------------------
+-- Manually create a SQL Profile.
+--------------------------------------------------------------------------------
+
+--Create SQL Profile to stop parallelism in one query.
+begin
+	dbms_sqltune.import_sql_profile
+	(
+		sql_text    => 'select /*+parallel*/ * from satellite',
+		name        => 'STOP_PARALLELISM',
+		force_match => true,
+		profile     => sqlprof_attr('no_parallel')
+	);
+end;
+/
+
+begin
+	dbms_sqltune.drop_sql_profile('STOP_PARALLELISM');
+end;
+/
+
+
+
 --------------------------------------------------------------------------------
 --IO per user per snapshot.
 --------------------------------------------------------------------------------

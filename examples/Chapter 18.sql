@@ -319,3 +319,86 @@ select dbms_sqltune.report_sql_monitor('242q2tafkqamm') from dual;
 select dbms_sqltune.report_sql_monitor('242q2tafkqamm',
 	type => 'active')
 from dual;
+
+
+
+---------------------------------------------------------------------------
+-- SQL Profile example
+---------------------------------------------------------------------------
+
+--Query that shouldn't run in parallel.
+explain plan for select /*+parallel*/ * from satellite;
+
+select * from table(dbms_xplan.display(format => 'basic +note'));
+
+
+--Create SQL Profile to stop parallelism in one query.
+begin
+	dbms_sqltune.import_sql_profile
+	(
+		sql_text    => 'select /*+parallel*/ * from satellite',
+		name        => 'STOP_PARALLELISM',
+		force_match => true,
+		profile     => sqlprof_attr('no_parallel')
+	);
+end;
+/
+
+
+
+---------------------------------------------------------------------------
+-- Automatic statistics
+---------------------------------------------------------------------------
+
+--Gather optimizer statistics in parallel, for this one table.
+begin
+	dbms_stats.set_table_prefs(user, 'TEST1', 'DEGREE', 8);
+end;
+/
+
+
+--Dynamic sampling to estimate object types.
+explain plan for
+select /*+dynamic_sampling(2) */ column_value
+from table(sys.odcinumberlist(1,2,3));
+
+select * from table(dbms_xplan.display(format => 'basic +rows +note'));
+
+
+--Extended statistics on ENGINE_PROPELLANT.
+select dbms_stats.create_extended_stats(
+	ownname => 'SPACE',
+	tabname => 'ENGINE_PROPELLANT',
+	extension => '(PROPELLANT_ID,OXIDIZER_OR_FUEL)')
+from dual;
+
+
+--Demonstrate extended statistics.
+--(NOT SHOWN IN BOOK.)
+--Original estimate with one predicate: 41 rows.  Actual cadinality: 41.
+explain plan for select * from engine_propellant where propellant_id = 1;
+select * from table(dbms_xplan.display);
+
+--Original estimate with two predicates: 30 rows.  Actual cardinality: 41.
+explain plan for select * from space.engine_propellant where propellant_id = 1 and oxidizer_or_fuel = 'fuel';
+select * from table(dbms_xplan.display);
+
+--Gather stats.
+begin
+	dbms_stats.gather_table_stats('SPACE', 'ENGINE_PROPELLANT', no_invalidate => false);
+end;
+/
+
+--Now the estimate is correct at 41.
+--(This require multiple runs before it works correctly.)
+explain plan for select * from engine_propellant where propellant_id = 1 and oxidizer_or_fuel = 'fuel';
+select * from table(dbms_xplan.display);
+
+--View the extended statistics.
+select * from dba_tab_col_statistics where table_name = 'ENGINE_PROPELLANT';
+
+--Drop extended statistics.
+begin
+	dbms_stats.drop_extended_stats('SPACE', 'ENGINE_PROPELLANT', '(propellant_id,oxidizer_or_fuel)');
+end;
+/
