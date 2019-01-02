@@ -148,6 +148,34 @@ where owner = 'SPACE'
 
 
 ---------------------------------------------------------------------------
+-- Transformations
+---------------------------------------------------------------------------
+
+--Trivial example of predicate pushing.
+select * from (select * from launch) where launch_id = 1;
+
+
+--Simple view merging example.
+select *
+from
+(
+	select *
+	from satellite
+	join launch using (launch_id)
+) launch_satellites
+join site
+	on launch_satellites.site_id = site.site_id
+where site.site_id = 1;
+
+
+--Simple unnesting example.  (Launches with a satelite.)
+select *
+from launch
+where launch_id in (select launch_id from satellite);
+
+
+
+---------------------------------------------------------------------------
 -- Transformations and Dynamic Optimizations
 ---------------------------------------------------------------------------
 
@@ -163,37 +191,10 @@ where to_char(launch.launch_date, 'YYYY') = '2050';
 select * from table(dbms_xplan.display_cursor(
 	sql_id =>
 	(
-		select distinct sql_id from gv$sql
+		select distinct sql_id from v$sql
 		where sql_fulltext like '%1970%'
 		--where sql_fulltext like '%2050%'
 			and sql_fulltext not like '%quine%'
 	),
 	format => 'adaptive')
 );
-
-
-
----------------------------------------------------------------------------
--- Transformations
----------------------------------------------------------------------------
-
---Trivial example of predicate pushing.
-select * from (select * from launch) where launch_id = 1;
-
-
---Simple view merging example.
-select *
-from
-(
-	select *
-	from satellite join launch using (launch_id)
-) launch_satellites
-join site
-	on launch_satellites.site_id = site.site_id
-where site.site_id = 1;
-
-
---Simple unnesting example.  (Launches with a satelite.)
-select *
-from launch
-where launch_id in (select launch_id from satellite);
