@@ -2,7 +2,7 @@
 -- Profiling
 ---------------------------------------------------------------------------
 
---Create test procedure.
+--Create a test procedure that runs many COUNT operations.
 create or replace procedure test_procedure is
 	v_count number;    
 begin
@@ -72,7 +72,7 @@ select 2 a from dual union all
 select 3 a from dual;
 
 
---Alternative ways to generate numbers and other values.
+--Alternate ways to generate numbers and other values.
 select level a from dual connect by level <= 3;
 select column_value a from table(sys.odcinumberlist(1,2,3));
 select column_value a from table(sys.odcivarchar2list('A','B','C'));
@@ -101,7 +101,7 @@ select event, gv$session.* from gv$session;
 
 
 --Statistics.
---Session that generated the most redo.
+--Sessions that generated the most redo.
 select round(value/1024/1024) redo_mb, sid, name
 from v$sesstat
 join v$statname
@@ -122,10 +122,12 @@ where metric_name = 'I/O Megabytes per Second';
 -- Automatic Workload Repository (AWR) and Active Session History (ASH)
 ---------------------------------------------------------------------------
 
---Repeatedly count a large(ish) table using a non-indexed column.
+--Repeatedly count a large table using a non-indexed column.
+--Takes about 5 minutes to run.
 declare
 	v_count number;
 begin
+	dbms_workload_repository.create_snapshot;
 	for i in 1 .. 100000 loop
 		select count(*)
 		into v_count
@@ -137,7 +139,7 @@ end;
 /
 
 
---Find snapshot for generating AWR report.
+--Find snapshots, for generating AWR reports.
 select *
 from dba_hist_snapshot
 order by begin_interval_time desc;
@@ -146,10 +148,10 @@ order by begin_interval_time desc;
 --Generate AWR report.
 select *
 from table(dbms_workload_repository.awr_report_html(
-	l_dbid     => 3483962617,
+	l_dbid     => (select dbid from v$database),
 	l_inst_num => 1,
-	l_bid      => 6395,
-	l_eid      => 6396
+	l_bid      => 6709,
+	l_eid      => 6709
 ));
 
 
@@ -160,8 +162,8 @@ begin
 	dbms_addm.analyze_db
 	(
 		task_name      => v_task_name,
-		begin_snapshot => 6395,
-		end_snapshot   => 6396
+		begin_snapshot => 6709,
+		end_snapshot   => 6710
 	);
 end;
 /
@@ -231,7 +233,7 @@ select * from table(dbms_xplan.display(format => 'basic +rows'));
 select * from table(dbms_xplan.display(format => 'typical -rows'));
 
 
---Display the Outline Data.  (Run "explain plan for" first.)
+--Display the Outline Data.
 select * from table(dbms_xplan.display(format => '+outline'));
 
 
