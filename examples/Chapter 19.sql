@@ -1,9 +1,9 @@
 ---------------------------------------------------------------------------
--- 
+-- MODEL
 ---------------------------------------------------------------------------
 
 --Cellular automata with MODEL.
-select listagg(value, '') within group (order by cell)
+select listagg(value, '') within group (order by cell) line
 from
 (
 	--Apply cellular automata rules with MODEL.
@@ -26,18 +26,17 @@ from
 	rules
 	(
 		--Comment out rules to set them to ' '.
-		--Interesting patterns: 18 (00010010) 30 (00011110)
-		--  60 (00111100), 110 (01101110)
+		--Interesting patterns: 18 (00010010) 110 (01101110)
 		value[generation >= 1, ANY] = case
 				value[CV()-1, CV()-1] ||
 				value[CV()-1, CV()  ] ||
 				value[CV()-1, CV()+1]
 			--when '###' then '#'
-			--when '## ' then '#'
-			--when '# #' then '#'
-			when '#  ' then '#'
+			when '## ' then '#'
+			when '# #' then '#'
+			--when '#  ' then '#'
 			when ' ##' then '#'
-			--when ' # ' then '#'
+			when ' # ' then '#'
 			when '  #' then '#'
 			--when '   ' then '#'
 			else ' ' end

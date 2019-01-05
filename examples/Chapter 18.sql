@@ -256,7 +256,7 @@ and rownum <= 5;
 -- Find actual values - GATHER_PLAN_STATISTICS
 ---------------------------------------------------------------------------
 
---Create LAUNCH2 table but gather stats at wrong time.
+--Create LAUNCH2 table and gather stats at the wrong time.
 create table launch2 as select * from launch where 1=2;
 
 begin
@@ -277,15 +277,15 @@ from launch2 join satellite using (launch_id);
 --Find the SQL_ID.
 select * from gv$sql where sql_fulltext like '%select%launch2%';
 
---First execution has NESTED LOOPS SEMI and bad cardinalities.
+--First execution has NESTED LOOPS, bad cardinalities, bad performance.
 select * from table(dbms_xplan.display_cursor(
-	sql_id => '2wusnw2fbpdrq',
+	sql_id => '82nk6712jkfg2',
 	format => 'iostats last'));
 
 
---Re-gather stats, flush shared pool, re-run query.
+--Re-gather stats and re-run the query.
 begin
-	dbms_stats.gather_table_stats(user, 'launch2',
+	dbms_stats.gather_table_stats('space', 'launch2',
 		no_invalidate => false);
 end;
 /
@@ -294,9 +294,9 @@ end;
 select /*+ gather_plan_statistics */ count(distinct launch_date)
 from launch2 join satellite using (launch_id);
 
---Second execution has HASH JOIN, better cardinalities, faster.
+--Second execution has HASH JOIN, good cardinalities, good performance.
 select * from table(dbms_xplan.display_cursor(
-	sql_id => '2wusnw2fbpdrq',
+	sql_id => '82nk6712jkfg2',
 	format => 'iostats last'));
 
 
@@ -305,7 +305,7 @@ select * from table(dbms_xplan.display_cursor(
 -- Find actual values - Real-Time SQL Monitor Report
 ---------------------------------------------------------------------------
 
---Ridiculously bad cross join.  (Run in separate session.)
+--Ridiculously bad cross join.  (Run in a separate session.)
 select /*+ parallel(64) */ count(*) from launch,launch;
 
 --Find the SQL_ID, while the previous statement is running.
@@ -352,7 +352,7 @@ end;
 -- Automatic statistics
 ---------------------------------------------------------------------------
 
---Gather optimizer statistics in parallel, for this one table.
+--Gather optimizer statistics in parallel.
 begin
 	dbms_stats.set_table_prefs(user, 'TEST1', 'DEGREE', 8);
 end;
