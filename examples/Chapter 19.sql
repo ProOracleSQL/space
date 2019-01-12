@@ -19,7 +19,8 @@ from
 			end state
 		from
 		(select level-1 generation from dual connect by level <= 120)
-		,(select level-1 cell from dual connect by level <= 240)
+		cross join
+		(select level-1 cell from dual connect by level <= 240)
 	)
 	model
 	dimension by (generation, cell)
@@ -172,7 +173,7 @@ select 10000,'1963-S479','1963-10-05 00:00:00','military missile','success',1053
 -- Oracle Text
 ---------------------------------------------------------------------------
 
---GPS launches.  Uses a full table scan.
+--GPS launches using LIKE operator.
 select count(*) total
 from launch
 where lower(mission) like '%gps%';
@@ -185,7 +186,7 @@ create index launch_mission_text
 	on launch(mission) indextype is ctxsys.context;
 
 
---GPS launches.  CONTAINS operator uses DOMAIN INDEX
+--GPS launches using CONTAINS operator.
 explain plan for
 select count(*) total
 from launch

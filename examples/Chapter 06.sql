@@ -100,8 +100,7 @@ from
 	select ...
 	from table1,table2,table3,table4
 	where ...
-)
-join
+),
 (
 	select ...
 	from table5,table6,table7,table8
@@ -114,11 +113,6 @@ where ...;
 ---------------------------------------------------------------------------
 -- Example
 ---------------------------------------------------------------------------
-
-set pagesize 1000;
-column launch_year format a11;
-column fuel format a13;
-column launch_count format 999,999;
 
 --Top 3 fuels used per year using ANSI join syntax.
 --
@@ -134,9 +128,9 @@ from
 	(
 		--#4: Count of fuel used per year.
 		select
-			to_char(launch_date, 'YYYY') launch_year,
+			to_char(launches.launch_date, 'YYYY') launch_year,
 			count(*) launch_count,
-			fuel
+			engine_fuels.fuel
 		from
 		(
 			--#1: Orbital and deep space launches.
@@ -173,6 +167,7 @@ where rownumber <= 3
 order by launch_year, launch_count desc;
 
 
+--(NOT SHOWN IN BOOK)
 --Top 3 fuels used per year using old-fashioned join syntax.
 --While this query is smaller, it's usually harder to read
 --since it tries to do everything at once.
@@ -188,9 +183,9 @@ from
 	(
 		--Count of fuel used per year.
 		select
-			to_char(launch_date, 'YYYY') launch_year,
+			to_char(launch.launch_date, 'YYYY') launch_year,
 			count(*) launch_count,
-			propellant_name fuel
+			propellant.propellant_name fuel
 		from launch, launch_vehicle_stage, stage, engine, engine_propellant, propellant
 		where launch.lv_id = launch_vehicle_stage.lv_id(+)
 			and launch_vehicle_stage.stage_name = stage.stage_name(+)
