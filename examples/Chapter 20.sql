@@ -97,12 +97,13 @@ end;
 -- DBMS_XMLGEN
 ---------------------------------------------------------------------------
 
---Simple XML result from DBMS_XMLGEN.GETXML.
-select xmltype(dbms_xmlgen.getxml('select * from dual')) result
+--Convert query into XML.
+select dbms_xmlgen.getxml('select * from dual') result
 from dual;
 
 
 --Number of rows in all LAUNCH* tables in SPACE schema.
+--
 --Convert XML to columns.
 select
 	table_name,
