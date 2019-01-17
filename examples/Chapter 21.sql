@@ -133,7 +133,7 @@ end;
 
 
 ---------------------------------------------------------------------------
--- Record and collection variables
+-- Records
 ---------------------------------------------------------------------------
 
 --Build user-defined type, which acts similar to PL/SQL record.
@@ -171,25 +171,104 @@ end;
 
 
 
+---------------------------------------------------------------------------
+-- Collections
+---------------------------------------------------------------------------
 
-
---Demonstrate %ROWTYPE.
+--Define, populate, and iterate nested tables using %ROWTYPE.
 declare
 	type launch_nt is table of launch%rowtype;
 	v_launches launch_nt;
 begin
-	execute immediate 'select * from launch'
-	bulk collect into v_launches;
-
 	select *
 	bulk collect into v_launches
 	from launch;
 
+	execute immediate 'select * from launch'
+	bulk collect into v_launches;
+
 	for i in 1 .. v_launches.count loop
-		null;
+		dbms_output.put_line(v_launches(i).launch_id);
+		exit;
 	end loop;
 end;
 /
+
+
+
+---------------------------------------------------------------------------
+-- Table functions
+---------------------------------------------------------------------------
+
+--Common uses of TABLE functions.
+select * from table(dbms_xplan.display);
+
+
+--Simple nested table and table function that uses it.
+create or replace type number_nt is table of number;
+
+create or replace function get_distinct(p_numbers number_nt)
+return number_nt is
+begin
+	return set(p_numbers);
+end;
+/
+
+
+--Distinct launch apogees from custom PL/SQL function.
+select *
+from table(get_distinct
+((
+	select cast(collect(apogee) as number_nt)
+	from launch
+)));
+
+
+--Simpler, faster SQL version.
+select distinct apogee from launch;
+
+
+
+---------------------------------------------------------------------------
+-- Pipelined functions
+---------------------------------------------------------------------------
+
+--Simple pipelined function.
+create or replace function simple_pipe
+return sys.odcinumberlist pipelined is
+begin
+	for i in 1 .. 3 loop
+		pipe row(i);
+	end loop;
+end;
+/
+
+select * from table(simple_pipe);
+
+
+
+---------------------------------------------------------------------------
+-- Parallel pipelined functions
+---------------------------------------------------------------------------
+
+--Parallel pipelined function.
+create or replace function parallel_pipe(p_cursor sys_refcursor)
+return sys.odcinumberlist pipelined
+parallel_enable(partition p_cursor by any) is
+	v_launch launch%rowtype;
+begin
+	loop
+		fetch p_cursor into v_launch;
+		exit when p_cursor%notfound;
+		pipe row(v_launch.launch_id);
+	end loop;
+end;
+/
+
+
+--Call parallel pipelined function.
+select *
+from table(parallel_pipe(cursor(select /*+ parallel */ * from launch)));
 
 
 
@@ -231,6 +310,3 @@ begin
 	$end
 end;
 /
-
-
-
