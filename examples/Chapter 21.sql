@@ -2,7 +2,7 @@
 -- Create a PL/SQL Playground
 ---------------------------------------------------------------------------
 
---PL/SQL block with nested procedure and functions.
+--PL/SQL block with nested procedure and function.
 declare
 	v_declare_variables_first number;
 
@@ -45,9 +45,9 @@ end;
 --A table designed for Boolean data.
 create table boolean_test
 (
-	is_this_annoying varchar2(3) not null,
+	is_true varchar2(3) not null,
 	constraint boolean_test_ck
-		check(is_this_annoying in ('Yes', 'No'))
+		check(is_true in ('Yes', 'No'))
 );
 
 
@@ -102,7 +102,7 @@ end;
 select test_function from dual;
 
 
---This function catches and re-raises NO_DATA_FOUND exceptions.
+--This function re-raises NO_DATA_FOUND exceptions.
 create or replace function test_function2 return number is
 	v_dummy varchar2(1);
 begin
@@ -136,14 +136,14 @@ end;
 -- Records
 ---------------------------------------------------------------------------
 
---Build user-defined type, which acts similar to PL/SQL record.
+--Build user-defined type, which is similar to PL/SQL record.
 create or replace type propellant_type is object
 (
 	propellant_id   number,
 	propellant_name varchar2(4000)
 );
 
---Record with %ROWTYPE and IS RECORD, and a user-defined type.
+--Example of %ROWTYPE, IS RECORD, and user-defined type.
 declare
 	--Create variables and types.
 	v_propellant1 propellant%rowtype;
@@ -155,7 +155,7 @@ declare
 	);
 	v_propellant2 propellant_rec;
 
-	v_propellant3 propellant_type := propellant_type(null, null);
+	v_propellant3 propellant_type := propellant_type(null,null);
 begin
 	--Populate data.
 	v_propellant1.propellant_id := 1;
@@ -189,6 +189,7 @@ begin
 
 	for i in 1 .. v_launches.count loop
 		dbms_output.put_line(v_launches(i).launch_id);
+		--Only print one value.
 		exit;
 	end loop;
 end;
@@ -306,7 +307,7 @@ begin
 	$elsif dbms_db_version.ver_le_18 $then
 		dbms_output.put_line('Version 18');
 	$else
-		dbms_output.put_line('Hello, time traveler');
+		dbms_output.put_line('Future version');
 	$end
 end;
 /
