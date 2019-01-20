@@ -10,7 +10,7 @@ where to_char(to_date(launch_date), 'YYYY-Mon-DD') = '1957-Oct-04';
 --Simple query that uses native type functions.
 select *
 from launch
-where trunc(launch_date) = date '1957-Oct-04';
+where trunc(launch_date) = date '1957-10-04';
 
 
 --Confusing query that depends on precedence rules not everybody knows.
@@ -25,18 +25,13 @@ select * from dual where 1=1 or (1=0 and 1=2);
 -- CASE and DECODE
 ---------------------------------------------------------------------------
 
-set pagesize 9999;
-column case_result format a11;
-column decode_result format a13;
-set colsep "  ";
-
---fizz buzz
+--Fizz buzz.
 select
 	rownum line_number,
 	case
-		when mod(rownum, 5) = 0 and mod(rownum, 3) = 0 then 'fizz buzz'
-		when mod(rownum, 3) = 0 then 'fizz'
-		when mod(rownum, 5) = 0 then 'buzz'
+		when mod(rownum, 15) = 0 then 'fizz buzz'
+		when mod(rownum,  3) = 0 then 'fizz'
+		when mod(rownum,  5) = 0 then 'buzz'
 		else to_char(rownum)
 	end case_result,
 	decode(mod(rownum, 15), 0, 'fizz buzz',
@@ -70,67 +65,11 @@ select decode(null, null, 'Equal', 'Not Equal') null_decode from dual;
 
 
 ---------------------------------------------------------------------------
--- Set Operators
----------------------------------------------------------------------------
-
---Example of creating data with set operators and DUAL.
-select '1' a from dual union all
-select '2' a from dual union all
-select '3' a from dual union all
-...;
-
-
---Compare CASE and DECODE fizz buzz.
---This query returns zero rows.
-select
-	rownum line_number,
-	case
-		when mod(rownum, 5) = 0 and mod(rownum, 3) = 0 then 'fizz buzz'
-		when mod(rownum, 3) = 0 then 'fizz'
-		when mod(rownum, 5) = 0 then 'buzz'
-		else to_char(rownum)
-	end case_result
-from dual connect by level <= 100
-minus
-select
-	rownum line_number,
-	decode(mod(rownum, 15), 0, 'fizz buzz',
-		decode(mod(rownum, 3), 0, 'fizz',
-		decode(mod(rownum, 5), 0, 'buzz', rownum)
-		)
-	) decode_result
-from dual connect by level <= 100;
-
-
---Oracle considers the NULLs to be equal and only returns one row.
-select null from dual
-union
-select null from dual;
-
-
----------------------------------------------------------------------------
--- Sorting
----------------------------------------------------------------------------
-
-set pagesize 9999;
-set colsep "  ";
-column launch_date format a10;
-column official_name format a23;
-
---Sort, using almost all of the options.
-select to_char(launch_date, 'YYYY-MM-DD') launch_date, official_name
-from satellite
-join launch
-	on satellite.launch_id = launch.launch_id
-order by launch_date desc nulls last, 2;
-
-
----------------------------------------------------------------------------
 -- Joins
 ---------------------------------------------------------------------------
 
 --Partitioned outer join example.
---Count of launches per launch vehicle family, per month of 2017.
+--Launches per launch vehicle family, per month of 2017.
 select
 	launches.lv_family_code family,
 	months.launch_month,
@@ -222,6 +161,61 @@ join satellite using (launch_id);
 
 
 ---------------------------------------------------------------------------
+-- Sorting
+---------------------------------------------------------------------------
+
+--Sort, using most all of the options.
+select
+	to_char(launch.launch_date, 'YYYY-MM-DD') launch_date,
+	official_name
+from satellite
+left join launch
+	on satellite.launch_id = launch.launch_id
+order by launch_date desc nulls last, 2;
+
+
+
+---------------------------------------------------------------------------
+-- Set Operators
+---------------------------------------------------------------------------
+
+--Example of creating data with set operators and DUAL.
+select '1' a from dual union all
+select '2' a from dual union all
+select '3' a from dual union all
+...;
+
+
+--Compare CASE and DECODE fizz buzz.
+--This query returns zero rows.
+select
+	rownum line_number,
+	case
+		when mod(rownum, 15) = 0 then 'fizz buzz'
+		when mod(rownum,  3) = 0 then 'fizz'
+		when mod(rownum,  5) = 0 then 'buzz'
+		else to_char(rownum)
+	end case_result
+from dual connect by level <= 100
+minus
+select
+	rownum line_number,
+	decode(mod(rownum, 15), 0, 'fizz buzz',
+		decode(mod(rownum, 3), 0, 'fizz',
+		decode(mod(rownum, 5), 0, 'buzz', rownum)
+		)
+	) decode_result
+from dual connect by level <= 100;
+
+
+--Oracle considers the NULLs to be equal and only returns one row.
+select null from dual
+union
+select null from dual;
+
+
+
+---------------------------------------------------------------------------
 -- Advanced Grouping
 ---------------------------------------------------------------------------
 
@@ -237,7 +231,7 @@ order by 1,2,3;
 
 
 --Rollup example.
---Count of launches per family and name, per family, and grand total.
+--Launch count per family and name, per family, and grand total.
 select
 	lv_family_code,
 	lv_name,
@@ -305,8 +299,8 @@ from
 order by count desc, launch_category desc;
 
 
---LAG, LEAD, running total example.
---Deep space launches, with days between and running total for family.
+--LAG and running total example.
+--Deep space launches with analytic functions per family.
 select
 	to_char(launch_date, 'YYYY-MM-DD') launch_date,
 	flight_id2 spacecraft,
@@ -315,7 +309,8 @@ select
 		(partition by lv_family_code
 		order by launch_date) days_between,
 	count(*) over
-		(partition by lv_family_code order by launch_date) running_total
+		(partition by lv_family_code
+		order by launch_date) running_total
 from launch
 join launch_vehicle
 	on launch.lv_id = launch_vehicle.lv_id
