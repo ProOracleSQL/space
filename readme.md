@@ -1,4 +1,4 @@
-SpaceDB v2.0.0
+SpaceDB v2.0.1
 ==============
 
 SpaceDB is a data set that contains all orbital and suborbital launches, all satellites, and related information.  It's based on data from the JSR Launch Vehicle Database, 2017 Dec 28 Edition.
@@ -31,12 +31,20 @@ How to Install
 
 1. Download and unzip oracle_create_space.sql.zip.
 2. CD into the directory with that file.
-3. Start SQL\*Plus as a user who can either create another schema or load tables and data into their own schema.
-4. Either use your existing schema, or create a new one like this:
+3. Set the command line to work with a UTF8 file.  In Windows this should work:
+
+		C:\space> set NLS_LANG=American_America.UTF8
+
+	In Unix this should work:
+
+		setenv NLS_LANG American_America.UTF8
+
+4. Start SQL\*Plus as a user who can either create another schema or load tables and data into their own schema.
+5. Either use your existing schema, or create a new one like this:
 
 		SQL> create user space identified by "enterPasswordHere#1" quota unlimited on users;
 
-5. Run these commands to install the tables and data.  It should only take a minute.
+6. Run these commands to install the tables and data.  It should only take a minute.
 
 		SQL> alter session set current_schema = space;
 		SQL> @oracle_create_space.sql
