@@ -45,6 +45,7 @@ connect by level <= 100;
 
 --Fizz buzz as a simple case expression, with similar decode style.
 --This is a bad way to program it, but this syntax is useful sometimes.
+--Hard-coded fizz buzz.
 select
 	rownum line_number,
 	case rownum
@@ -59,8 +60,8 @@ connect by level <= 100;
 
 
 --Null comparison.
---This function breaks the rule of "null never equals null", it returns "Equal".
-select decode(null, null, 'Equal', 'Not Equal') null_decode from dual;
+--This function breaks the rule of "null never equals null", it returns "A".
+select decode(null, null, 'A', 'B') null_decode from dual;
 
 
 
@@ -130,8 +131,8 @@ where not exists
 select
 	organization.org_name,
 	parent_organization.org_name parent_org_name
-from space.organization
-left join space.organization parent_organization
+from organization
+left join organization parent_organization
 	on organization.parent_org_code = parent_organization.org_code
 order by organization.org_name desc;
 
@@ -164,7 +165,7 @@ join satellite using (launch_id);
 -- Sorting
 ---------------------------------------------------------------------------
 
---Sort, using most all of the options.
+--Most recently launched satellites.
 select
 	to_char(launch.launch_date, 'YYYY-MM-DD') launch_date,
 	official_name
@@ -187,7 +188,6 @@ select '3' a from dual union all
 
 
 --Compare CASE and DECODE fizz buzz.
---This query returns zero rows.
 select
 	rownum line_number,
 	case
@@ -262,11 +262,11 @@ order by lv_family_code;
 
 
 --FIRST and LAST mode of aggregate functions.
---For each launch vehicle family, find the first, min, and max apogee.
+--For each family find the first, min, and max apogee.
 select
 	lv_family_code,
-	min(launch.apogee)
-		keep (dense_rank first order by launch_date) first_apogee,
+	min(launch.apogee) keep
+		(dense_rank first order by launch_date) first_apogee,
 	min(launch.apogee) min_apogee,
 	max(launch.apogee) max_apogee
 from launch
@@ -318,9 +318,8 @@ where launch_category = 'deep space'
 order by launch.launch_date;
 
 
-
+--(NOT SHOWN IN BOOK.)
 --Tabibitosan (Japanese counting method)
---Not shown in the book - it would take too long to describe.
 --
 --Find ranges of consecutive launches per family.
 select
@@ -493,7 +492,7 @@ order by launch_year, launch_status desc;
 
 
 --Old-fashioned pivoting method.
---Pivoted launch success and failure per year.
+--Pivoted launch successes and failures per year.
 select
 	to_char(launch_date, 'YYYY') launch_year,
 	sum(case when launch_status = 'success' then 1 else 0 end) success,
@@ -557,7 +556,11 @@ from
 	from launch
 	where launch_category in ('orbital', 'deep space')
 ) launches
-unpivot (flight_name for flight_id in (flight_id1 as 1, flight_id2 as 2))
+unpivot
+(
+	flight_name for
+	flight_id in (flight_id1 as 1, flight_id2 as 2)
+)
 order by launch_id;
 
 
@@ -593,7 +596,7 @@ from sys.wrh$_sqlstat partition for (1,1);
 -- Common Table Expressions
 ---------------------------------------------------------------------------
 
---Delete and update a random row from a not-so-important table.
+--Delete and update a row from a not-so-important table.
 delete from engine_propellant where rownum <= 1;
 
 update engine_propellant
@@ -645,7 +648,9 @@ begin
 exception
 	when value_error then return 'N';
 end;
-select to_char(launch_date, 'YYYY-MM-DD') launch_date, flight_id1
+select
+	to_char(launch_date, 'YYYY-MM-DD') launch_date,
+	flight_id1
 from launch
 where flight_id1 is not null
 	and is_number(flight_id1) = 'Y'
