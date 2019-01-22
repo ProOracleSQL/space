@@ -40,14 +40,9 @@ where satellite.launch_id in
 -- DELETE
 ---------------------------------------------------------------------------
 
+--(Will throw: "ORA-02292: integrity constraint (JHELLER.LAUNCH_AGENCY_LAUNCH_FK) violated")
 --Example of trying to delete from parent table.
-SQL> delete from launch;
-delete from launch
-*
-ERROR at line 1:
-ORA-02292: integrity constraint (JHELLER.LAUNCH_AGENCY_LAUNCH_FK) violated -
-child record found
-;
+delete from launch;
 
 
 
@@ -112,18 +107,13 @@ set official_name = flight_id2;
 ---------------------------------------------------------------------------
 
 --Example of unique constraint error from loading duplicate data.
-SQL> insert into propellant values(-1, 'Ammonia');
-insert into propellant values(-1, 'Ammonia')
-*
-ERROR at line 1:
-ORA-00001: unique constraint (JHELLER.PROPELLANT_UQ) violated
+--(Throws error "ORA-00001: unique constraint (JHELLER.PROPELLANT_UQ) violated")
+insert into propellant values(-1, 'Ammonia');
 
 
 --Example of using hint to avoid duplicate rows.
-SQL> insert /*+ignore_row_on_dupkey_index(propellant,propellant_uq)*/
-  2  into propellant values(-1, 'Ammonia');
-
-0 rows created.
+insert /*+ignore_row_on_dupkey_index(propellant,propellant_uq)*/
+into propellant values(-1, 'Ammonia');
 
 
 --Allow parallel DML.
@@ -131,19 +121,13 @@ alter session enable parallel dml;
 
 
 
-
 ---------------------------------------------------------------------------
 -- Error Logging
 ---------------------------------------------------------------------------
 
---Example of statement that causes an error.
-SQL> insert into launch(launch_id, launch_tag)
-  2  values (-1, 'A value too large for this column');
-values (-1, 'A value too large for this column')
-            *
-ERROR at line 2:
-ORA-12899: value too large for column "JHELLER"."LAUNCH"."LAUNCH_TAG" (actual:
-33, maximum: 15)
+--Insert into LAUNCH and generate error.
+insert into launch(launch_id, launch_tag)
+values (-1, 'A value too large for this column');
 
 
 --Create error logging table.
@@ -153,13 +137,11 @@ end;
 /
 
 
-SQL> --Insert into LAUNCH and log errors.
-SQL> insert into launch(launch_id, launch_tag)
-  2  values (-1, 'A value too large for this column')
-  3  log errors into err$_launch
-  4  reject limit unlimited;
-
-0 rows created.
+--Insert into LAUNCH and log errors.
+insert into launch(launch_id, launch_tag)
+values (-1, 'A value too large for this column')
+log errors into err$_launch
+reject limit unlimited;
 
 
 --Error logging table.
@@ -206,7 +188,7 @@ end;
 -- TRUNCATE
 ---------------------------------------------------------------------------
 
---Create a table and insert some rows.
+--Create a table and insert rows.
 create table truncate_test(a varchar2(4000));
 
 insert into truncate_test
@@ -218,13 +200,13 @@ select megabytes, object_id, data_object_id
 from
 (
 	select bytes/1024/1024 megabytes
-	from user_segments
+	from dba_segments
 	where segment_name = 'TRUNCATE_TEST'
 ) segments
 cross join
 (
 	select object_id, data_object_id
-	from user_objects
+	from dba_objects
 	where object_name = 'TRUNCATE_TEST'
 ) objects;
 
@@ -240,7 +222,6 @@ cross join
 -- COMMIT, ROLLBACK, SAVEPOINT
 ---------------------------------------------------------------------------
 
-
 --Insert temporary data to measure transactions.
 insert into launch(launch_id, launch_tag) values (-999, 'test');
 
@@ -251,10 +232,6 @@ select used_urec from v$transaction;
 rollback;
 
 select used_urec from v$transaction;
-
-USED_UREC
----------
-
 
 
 
@@ -395,6 +372,3 @@ end;
 select * from dba_scheduler_jobs where job_name = 'TEST_JOB';
 select * from dba_scheduler_running_jobs where job_name = 'TEST_JOB';
 select * from dba_scheduler_job_run_details where job_name = 'TEST_JOB';
-
-
-     
