@@ -14,15 +14,24 @@ select * from v$sqlcommand where lower(command_name) like '%alter%'
 --Create a simple table and see its metadata.
 create table simple_table(a number, b varchar2(100), c date);
 
-select dbms_metadata.get_ddl('TABLE', 'SIMPLE_TABLE') from dual;
+select dbms_metadata.get_ddl(
+	object_type => 'TABLE',
+	name        => 'SIMPLE_TABLE',
+	schema      => sys_context('userenv', 'current_schema')
+) from dual;
 
-select * from user_tables where table_name = 'SIMPLE_TABLE';
+select *
+from all_tables
+where table_name = 'SIMPLE_TABLE'
+	and owner = sys_context('userenv', 'current_schema');
 
-select * from user_tab_columns where table_name = 'SIMPLE_TABLE';
+select *
+from all_tab_columns
+where table_name = 'SIMPLE_TABLE'
+	and owner = sys_context('userenv', 'current_schema');
 
 
---Temporary table example.
---Create a temporary table that holds data until next commit.
+--Global temporary table that holds data until next commit.
 create global temporary table temp_table(a number)
 on commit delete rows;
 
@@ -35,6 +44,7 @@ commit;
 select count(*) from temp_table;
 
 
+--(NOT SHOWN IN BOOK.)
 --Enable temporary undo in the session.
 --This will only work if the session has not already used the temporary
 --tablespace.  Only works in 12.1+.
@@ -52,6 +62,37 @@ on commit drop definition;
 create or replace type simple_object_test is object (a number, b number);
 create table simple_object_table_test of simple_object_test;
 select * from simple_object_table_test;
+
+
+--Create index-organized table.
+create table iot_table
+(
+	a number,
+	b number,
+	constraint iot_table_pk primary key(a)
+)
+organization index;
+
+
+--Compression.
+--Create a compressed table.
+create table compressed_table(a number) compress;
+
+--Compression will only happen for direct-path inserts.
+--Periodically MOVE table if we can't use direct-path inserts.
+alter table compressed_table move compress;
+
+
+--Create table with parallelism enabled by default.
+create table parallel_table(a number) parallel;
+
+
+--Create a table without deferred segment creation.
+create table deferred_segment_table(a number)
+segment creation immediate;
+
+--Force Oracle to create a segment.
+alter table deferred_segment_table allocate extent;
 
 
 --Table with XMLType.
@@ -88,37 +129,6 @@ create table identity_table
 insert into identity_table(c) values(1);
 
 select * from identity_table;
-
-
---Create index organized table.
-create table iot_table
-(
-	a number,
-	b number,
-	constraint iot_table_pk primary key(a)
-)
-organization index;
-
-
---Create a table without deferred segment creation.
-create table deferred_segment_table(a number)
-segment creation immediate;
-
---Force Oracle to create a segment.
-alter table deferred_segment_table allocate extent;
-
-
---Compression.
---Create a compressed table.
-create table compressed_table(a number) compress;
-
---Compression will only happen for direct-path inserts.
---Periodically MOVE the table if we can't use direct-path inserts.
-alter table compressed_table move compress;
-
-
---Create table with parallelism enabled by default.
-create table parallel_table(a number) parallel;
 
 
 
@@ -205,7 +215,7 @@ add constraint organization_parallel_pk primary key(org_code);
 --Set the table to run in parallel.
 alter table organization_parallel parallel;
 
---Create constraint, but have it initially disabled.
+--Create constraint but have it initially disabled.
 alter table organization_parallel
 add constraint organization_parallel_fk foreign key (parent_org_code)
 references organization_parallel(org_code) disable;
@@ -321,7 +331,7 @@ select /*+ full(launch) */ count(*) from launch where launch_category = 'orbital
 select count(*) from launch_all where launch_category = 'orbital';
 
 
---These return the same results, but LAUNCH_ALL is faster.
+--These return the same results but LAUNCH_ALL is faster.
 select * from launch where launch_category = 'orbital';
 select * from launch_all where launch_category = 'orbital';
 
