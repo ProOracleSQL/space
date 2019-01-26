@@ -192,7 +192,7 @@ select * from organization;
 
 alter table organization_parallel modify org_code varchar2(20);
 
---Increase rows to about 10 million.
+--Increase rows to about 10 million.  Takes about a minute to run.
 --(NOT SHOWN IN BOOK)
 begin
 	for i in 1 .. 3674 loop
@@ -206,7 +206,7 @@ begin
 end;
 /
 
---Create primary key constraint.
+--Create primary key constraint.  Takes about a minute to run.
 --(NOT SHOWN IN BOOK)
 alter table organization_parallel
 add constraint organization_parallel_pk primary key(org_code);
@@ -282,8 +282,7 @@ alter index launch_date_idx rebuild;
 
 --Rebuild online, quickly, and then reset properties.
 alter index launch_date_idx rebuild online nologging parallel;
-alter index launch_date_idx logging;
-alter index launch_date_idx noparallel;
+alter index launch_date_idx logging noparallel;
 
 
 
@@ -298,9 +297,9 @@ select * from launch where launch_category = 'orbital';
 --Crate poor man's partitioning on LAUNCH table.
 --Create a table for each LAUNCH_CATEGORY.
 --(Only partially shown in book.)
-create table launch_suborbital_rocket      as select * from launch where launch_category = 'suborbital rocket';
-create table launch_military_missile       as select * from launch where launch_category = 'military missile';
 create table launch_orbital                as select * from launch where launch_category = 'orbital';
+create table launch_military_missile       as select * from launch where launch_category = 'military missile';
+create table launch_suborbital_rocket      as select * from launch where launch_category = 'suborbital rocket';
 create table launch_atmospheric_rocket     as select * from launch where launch_category = 'atmospheric rocket';
 create table launch_suborbital_spaceplane  as select * from launch where launch_category = 'suborbital spaceplane';
 create table launch_test_rocket            as select * from launch where launch_category = 'test rocket';
@@ -322,6 +321,8 @@ select * from launch_ballistic_missile_test where launch_category = 'ballistic m
 select * from launch_sounding_rocket        where launch_category = 'sounding rocket' union all
 select * from launch_lunar_return           where launch_category = 'lunar return';
 
+
+--(NOT SHOWN IN BOOK.)
 --To quickly compare these, run with autotrace on and notice how the
 --LAUNCH_ALL view uses significantly less "consistent gets", and has
 --many "FILTER" operations in the execution plan.
@@ -353,7 +354,9 @@ partition by list(launch_category)
 ) as
 select * from launch;
 
-select * from launch_partition where launch_category = 'orbital';
+select *
+from launch_partition
+where launch_category = 'orbital';
 
 
 --Partition administration examples.
@@ -371,8 +374,8 @@ create or replace force view bad_view as
 select * from does_not_exist;
 
 --The view exists but is broken and throws this error:
---ORA-04063: view "JHELLER.BAD_VIEW2" has errors
-select * from bad_view2;
+--ORA-04063: view "SPACE.BAD_VIEW2" has errors
+select * from bad_view;
 
 
 --Create nested views and expand them.
