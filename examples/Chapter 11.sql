@@ -55,8 +55,8 @@ from
 where "Good luck using this name!" = 1;
 
 
---Example of using values in the names.
 --(NOT SHOWN IN BOOK.)
+--Example of using values in the names.
 select launch_id, launch_date
 from
 (
@@ -136,6 +136,29 @@ end;
 
 
 --Example of honest code:
---This works, but I don't know why!
+--This works but I don't know why!
 select date '9999-12-31' dangerous_last_date
 from dual;
+
+
+--We're all scared of the error "ORA-01427: single-row subquery returns 
+-- more than one row", but sometimes we want to see that error.
+-- "=" is better than "in" if there should only be one value.
+select * from dual where 'X' in (select dummy from dual);
+select * from dual where 'X' = (select dummy from dual);
+
+
+--Don't hide NO_DATA_FOUND errors.
+declare
+	v_dummy varchar2(1);
+begin
+	--This generates "ORA-01403: no data found".
+	select dummy into v_dummy from dual where 1=0;
+
+	--We might be tempted to avoid errors with aggregation.
+	select max(dummy) into v_dummy from dual where 1=0;
+
+	--But we want an error if this code fails.
+	select dummy into v_dummy from dual;
+end;
+/
