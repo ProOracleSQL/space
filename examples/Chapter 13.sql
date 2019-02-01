@@ -11,9 +11,9 @@ join launch_agency
 	on launch.launch_id = launch_agency.launch_id
 join organization
 	on launch_agency.agency_org_code = organization.org_code
-where launch_category in ('deep space', 'orbital')
-group by agency_org_code, org_name
-order by count(*) desc;
+where launch.launch_category in ('deep space', 'orbital')
+group by organization.org_name
+order by launch_count desc, org_name;
 
 
 --Traditional SQL programming style.
@@ -23,8 +23,8 @@ SELECT o.org_name, COUNT(*) launch_count
  WHERE l.launch_id = la.launch_id
    AND la.agency_org_code = o.org_code
    AND l.launch_category IN ('deep space', 'orbital')
- GROUP BY la.agency_org_code, o.org_name
- ORDER BY COUNT(*) DESC;
+ GROUP BY o.org_name
+ ORDER BY launch_count DESC, o.org_name;
 
 
 
