@@ -22,7 +22,8 @@ return number authid current_user is
 	v_count number;
 begin
 	execute immediate
-	'select count(*) from '||p_table_name
+	'select count(*) from '||
+		dbms_assert.sql_object_name(p_table_name)
 	into v_count;
 
 	return v_count;
@@ -69,9 +70,9 @@ end;
 
 
 
-
-
-
+---------------------------------------------------------------------------
+-- Bind Variables for Performance and Security
+---------------------------------------------------------------------------
 
 --Count either LAUNCH or SATELLITE rows for a LAUNCH_ID.
 declare
@@ -84,7 +85,8 @@ begin
 	execute immediate
 	'
 		select count(*)
-		from '||p_launch_or_satellite||'
+		from '||
+			dbms_assert.sql_object_name(p_launch_or_satellite)||'
 		where launch_id = :launch_id
 	'
 	into v_count
@@ -94,6 +96,32 @@ begin
 end;
 /
 
+
+--SQL requires variables for each bind variable.
+--PL/SQL requires variables for each unique bind variable. 
+declare
+	v_count number;
+begin
+	execute immediate
+	'select count(*) from dual where 1=:A and 1=:A'
+	into v_count using 1,1;
+
+	execute immediate
+	'
+		declare
+			v_test1 number; v_test2 number;
+		begin
+			v_test1 := :A;  v_test2 := :A;
+		end;
+	' using 1;
+end;
+/
+
+
+
+---------------------------------------------------------------------------
+-- Alternative quoting mechanism
+---------------------------------------------------------------------------
 
 --Single quotation mark examples.
 select
