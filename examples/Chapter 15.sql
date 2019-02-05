@@ -30,8 +30,8 @@ create table bad_eav
 	value  varchar2(4000)
 );
 
-insert into bad_eav values (2, 'Name'         , 'Eliver');
-insert into bad_eav values (1, 'High Score'   , 11);
+insert into bad_eav values (1, 'Name'         , 'Eliver');
+insert into bad_eav values (2, 'High Score'   , 11);
 insert into bad_eav values (3, 'Date of Birth', '2011-04-28');
 
 
@@ -47,6 +47,14 @@ select *
 from bad_eav
 where name = 'Date of Birth'
 	and to_date(value, 'YYYY-MM-DD') = date '2011-04-28';
+
+
+--(NOT SHOWN IN BOOK.)
+--Type-safe way to query with new version 12.2 syntax.
+select *
+from bad_eav
+where name = 'Date of Birth'
+	and to_date(value default null on conversion error, 'YYYY-MM-DD') = date '2011-04-28';
 
 
 --Type- safe way to query a stringly-typed EAV.
@@ -127,6 +135,13 @@ select
 from dual;
 
 
+--Date arithmetic using math or INTERVAL.
+select
+	sysdate - 1/(24*60*60)        one_second_ago,
+	sysdate - interval '1' second one_second_ago
+from dual;
+
+
 
 ---------------------------------------------------------------------------
 -- Avoid CURSOR
@@ -167,10 +182,49 @@ end;
 
 
 ---------------------------------------------------------------------------
+-- Avoid Custom SQL Parsing
+---------------------------------------------------------------------------
+
+--Valid SELECT statements.
+SeLeCt * from dual;
+/*asdf*/   select * from dual;
+((((select * from dual))));
+with test1 as (select * from dual) select * from test1;
+
+
+
+---------------------------------------------------------------------------
 -- Avoid Simplistic Explanations for Generic Errors 
 ---------------------------------------------------------------------------
+
+--Deadlock example.  One session will fail with ORA-00060.
+--Session #1:
+update launch set site_id = site_id where launch_id = 1;
+
+--Session #2:
+update launch set site_id = site_id where launch_id = 2;
+update launch set site_id = site_id where launch_id = 1;
+
+--Session #1:
+update launch set site_id = site_id where launch_id = 2;
+
 
 --Find the location of the alert log.
 --For some reason the log.xml is in the "Diag Alert", and "alert.log" is in "Diag Trace".
 --(NOT SHOWN IN BOOK.)
 select * from v$diag_info;
+
+
+--Incorrectly catch and print error code: 
+declare
+	v_count number;
+begin
+	select /*+ parallel(8) */ count(*)
+	into v_count
+	from bad_eav
+	where name = 'Date of Birth'
+		and value = date '2011-04-28';
+exception when others then
+	dbms_output.put_line('Error: '||sqlcode);
+end;
+/
