@@ -5,6 +5,7 @@
 --In declarative SQL, these SYSDATEs generate the same value.
 select sysdate date1, sysdate date2 from dual;
 
+
 --In imperative PL/SQL, the two calls to SYSDATE on the same line will
 --occassionally return different values.
 --This code will usually stop running in a few seconds.
@@ -22,6 +23,10 @@ begin
 	end loop;
 end;
 /
+
+
+--Expression is ignored, no divide-by-zero error is raised.
+select * from dual where exists (select 1/0 from dual);
 
 
 --Generate execution plan.
