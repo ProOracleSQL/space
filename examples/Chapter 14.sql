@@ -4,14 +4,14 @@
 
 --Working PL/SQL block that compresses table with dynamic SQL.
 begin
-	execute immediate 'alter table launch move nocompress';
+	execute immediate 'alter table launch move compress online';
 end;
 /
 
 --Broken PL/SQL block that compresses table using static SQL.
 --This block raises a PL/SQL compilation error.
 begin
-	alter table launch move compress;
+	alter table launch move compress online;
 end;
 /
 
