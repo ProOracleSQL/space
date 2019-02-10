@@ -1,10 +1,41 @@
 ---------------------------------------------------------------------------
--- Profiling
+-- Logging
+---------------------------------------------------------------------------
+
+--Set the session's MODULE and ACTION.
+begin
+	dbms_application_info.set_module
+	(
+		module_name => 'Chapter 18',
+		action_name => 'Logging'
+	);
+end;
+/
+
+--Which sections in this chapter use the most resources.
+select action, count(*) session_count
+from v$active_session_history
+where module = 'Chapter 18'
+group by action
+order by session_count desc;
+
+
+--Which sections in this chapter use the most resources.
+select action, count(*) session_count
+from dba_hist_active_sess_history
+where module = 'Chapter 18'
+group by action
+order by session_count desc;
+
+
+
+---------------------------------------------------------------------------
+-- Profiling - DBMS_PROFILER
 ---------------------------------------------------------------------------
 
 --Create a test procedure that runs many COUNT operations.
 create or replace procedure test_procedure is
-	v_count number;    
+	v_count number;
 begin
 	for i in 1 .. 10000 loop
 		select count(*) into v_count from launch order by 1;
@@ -38,6 +69,41 @@ end;
 select * from plsql_profiler_data;
 select * from plsql_profiler_runs;
 select * from plsql_profiler_units;
+
+
+
+---------------------------------------------------------------------------
+-- Profiling - DBMS_HPROF
+---------------------------------------------------------------------------
+
+--Grant access to DBMS_HPROF.  Must be run as SYS.
+grant execute on sys.dbms_hprof to dba;
+
+--Create table to hold the results.
+create table hprof_report(the_date date, report clob);
+ 
+--Generate report.
+declare
+	v_report clob;
+	v_trace_id number;
+begin
+	--Create profiler tables, start profiling.
+	dbms_hprof.create_tables(force_it => true);
+	v_trace_id := dbms_hprof.start_profiling;
+
+	--Run the code to profile.
+	test_procedure;
+
+	--Stop profiling, create and store the report.
+	dbms_hprof.stop_profiling;
+	dbms_hprof.analyze(v_trace_id , v_report);
+	insert into hprof_report values(sysdate, v_report);
+	commit;
+end;
+/
+
+--View the report.
+select * from hprof_report;
 
 
 
@@ -89,9 +155,13 @@ select * from v$sys_time_model;
 select * from v$sess_time_model;
 
 
---Wait events.
-select nvl(event, 'CPU') event, gv$active_session_history.*
-from gv$active_session_history;
+--Recent wait events.
+select
+	nvl(event, 'CPU') event,
+	nvl(wait_class, 'CPU') wait_class,
+	v$active_session_history.*
+from v$active_session_history
+order by sample_time desc;
 
 
 --(NOT SHOWN IN BOOK).
@@ -369,7 +439,7 @@ select * from table(dbms_xplan.display(format => 'basic +rows +note'));
 
 --Extended statistics on ENGINE_PROPELLANT.
 select dbms_stats.create_extended_stats(
-	ownname => 'SPACE',
+	ownname => sys_context('userenv', 'current_schema'),
 	tabname => 'ENGINE_PROPELLANT',
 	extension => '(PROPELLANT_ID,OXIDIZER_OR_FUEL)')
 from dual;
