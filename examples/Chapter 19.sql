@@ -27,13 +27,13 @@ from
 	measures (state)
 	rules
 	(
-		--Comment out rules to set them to ' '.
+		--Comment out rules to set them to ' ' (off).
 		--Interesting patterns: 18 (00010010) 110 (01101110)
 		state[generation >= 1, any] =
 			case
-				state[cv()-1, cv()-1] ||
-				state[cv()-1, cv()  ] ||
-				state[cv()-1, cv()+1]
+				state[cv()-1, cv()-1] || --left
+				state[cv()-1, cv()  ] || --middle
+				state[cv()-1, cv()+1]    --right
 			--when '###' then '#'
 			when '## ' then '#'
 			when '# #' then '#'
@@ -197,6 +197,8 @@ select * from table(dbms_xplan.display(format => 'basic'));
 
 --Synchronize index after DML on the LAUNCH table.
 begin
-	ctx_ddl.sync_index(idx_name => 'space.launch_mission_text');
+	ctx_ddl.sync_index(idx_name =>
+		sys_context('userenv', 'current_schema')||
+		'.launch_mission_text');
 end;
 /
