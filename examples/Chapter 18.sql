@@ -12,7 +12,7 @@ begin
 end;
 /
 
---Which sections in this chapter use the most resources.
+--Which sections in this chapter used the most resources.
 select action, count(*) session_count
 from v$active_session_history
 where module = 'Chapter 18'
@@ -20,7 +20,8 @@ group by action
 order by session_count desc;
 
 
---Which sections in this chapter use the most resources.
+--Which sections in this chapter used the most resources.
+--(NOT SHOWN IN BOOK.)
 select action, count(*) session_count
 from dba_hist_active_sess_history
 where module = 'Chapter 18'
@@ -77,7 +78,7 @@ select * from plsql_profiler_units;
 ---------------------------------------------------------------------------
 
 --Grant access to DBMS_HPROF.  Must be run as SYS.
-grant execute on sys.dbms_hprof to dba;
+grant execute on sys.dbms_hprof to &your_user;
 
 --Create table to hold the results.
 create table hprof_report(the_date date, report clob);
@@ -193,12 +194,12 @@ where metric_name = 'I/O Megabytes per Second';
 ---------------------------------------------------------------------------
 
 --Repeatedly count a large table using a non-indexed column.
---Takes about 5 minutes to run.
+--Takes about 10 minutes to run.
 declare
 	v_count number;
 begin
 	dbms_workload_repository.create_snapshot;
-	for i in 1 .. 100000 loop
+	for i in 1 .. 200000 loop
 		select count(*)
 		into v_count
 		from satellite
@@ -304,7 +305,7 @@ select * from table(dbms_xplan.display(format => 'typical -rows'));
 
 
 --Display the Outline Data.
-select * from table(dbms_xplan.display(format => '+outline'));
+select * from table(dbms_xplan.display(format => 'advanced'));
 
 
 --(NOT SHOWN IN BOOK)
@@ -330,7 +331,11 @@ and rownum <= 5;
 create table launch2 as select * from launch where 1=2;
 
 begin
-	dbms_stats.gather_table_stats(user, 'launch2');
+	dbms_stats.gather_table_stats
+	(
+		ownname => sys_context('userenv', 'current_schema'),
+		tabname => 'launch2'
+	);
 end;
 /
 
@@ -355,8 +360,12 @@ select * from table(dbms_xplan.display_cursor(
 
 --Re-gather stats and re-run the query.
 begin
-	dbms_stats.gather_table_stats('space', 'launch2',
-		no_invalidate => false);
+	dbms_stats.gather_table_stats
+	(
+		ownname => sys_context('userenv', 'current_schema'),
+		tabname => 'launch2',
+		no_invalidate => false
+	);
 end;
 /
 
