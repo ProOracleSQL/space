@@ -72,7 +72,7 @@ END;
 -- DBMS_SQL
 ---------------------------------------------------------------------------
 
---Example of finding column name and value.
+--Example of dynamically retrieving data and metadata.
 declare
 	v_cursor integer;
 	v_result integer;
@@ -80,17 +80,36 @@ declare
 	v_count  number;
 	v_cols   dbms_sql.desc_tab4;
 begin
+	--Parse the SQL and get some metadata.
 	v_cursor := dbms_sql.open_cursor;
-	dbms_sql.parse(v_cursor, 'select * from dual', dbms_sql.native);
+	dbms_sql.parse(v_cursor, 'select * from dual',
+		dbms_sql.native);
 	dbms_sql.describe_columns3(v_cursor, v_count, v_cols);
 	dbms_sql.define_column(v_cursor, 1, v_value, 4000);
+
+	--Execute and get data.
 	v_result := dbms_sql.execute_and_fetch(v_cursor); 
 	dbms_sql.column_value(v_cursor, 1, v_value);
+
+	--Close cursor.
 	dbms_sql.close_cursor(v_cursor);
-	dbms_output.put_line(v_cols(1).col_name||':'||v_value);
+
+	--Display metadata and data.
+	dbms_output.put_line('Type: '||
+		case v_cols(1).col_type
+			when dbms_types.typecode_varchar then 'VARCHAR'
+			--Add more types here (this is painful)...
+		end
+	);
+	dbms_output.put_line('Name: '||v_cols(1).col_name);
+	dbms_output.put_line('Value: '||v_value);
 end;
 /
 
+Type: VARCHAR
+Name: DUMMY
+Value: X
+alter session set current_schema=space;
 
 
 ---------------------------------------------------------------------------
@@ -121,32 +140,27 @@ from
 )
 order by table_name;
 
-TABLE_NAME           COUNT
-------------------   -----
-LAUNCH               70535
-LAUNCH_AGENCY        71884
-LAUNCH_PAYLOAD_ORG   21214
-...
-
 
 
 ---------------------------------------------------------------------------
 -- PL/SQL Common Table Expressions
 ---------------------------------------------------------------------------
 
---Number of rows in all LAUNCH* tables in SPACE schema.
+--Number of rows in all LAUNCH* tables in the current schema.
 with function get_rows(p_table varchar2) return varchar2 is
 	v_number number;
 begin
-	execute immediate 'select count(*) from '||p_table
+	execute immediate 'select count(*) from '||
+		dbms_assert.sql_object_name(p_table)
 	into v_number;
 
 	return v_number;
 end;
 select table_name, get_rows(table_name) count
 from all_tables
-where owner = 'SPACE'
-	and table_name like 'LAUNCH%';
+where owner = sys_context('userenv', 'current_schema')
+	and table_name like 'LAUNCH%'
+order by table_name;
 /
 
 
@@ -205,4 +219,9 @@ select * from ptf.do_nothing(dual);
 -- Method5
 ---------------------------------------------------------------------------
 
-select * from table(m5('select * from dual'));
+select *
+from m5
+(
+	p_code    => 'select * from dual',
+	p_targets => '%'
+);
