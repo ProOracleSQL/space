@@ -22,6 +22,73 @@ end;
 /
 
 
+---------------------------------------------------------------------------
+-- Session data
+---------------------------------------------------------------------------
+
+--Create a package with global public and private variables.
+create or replace package test_package is
+	g_public_global number;
+	procedure set_private(a number);
+	function get_private return number;
+end;
+/
+
+--Create a package body that sets and gets private variables.
+create or replace package body test_package is
+	g_private_global number;
+
+	procedure set_private(a number) is
+	begin
+		g_private_global := a;
+	end;
+
+	function get_private return number is
+	begin
+		return g_private_global;
+	end;
+end;
+/
+
+--Public variables can be read or set directly in PL/SQL.
+begin
+	test_package.g_public_global := 1;
+end;
+/
+
+--Private variables cannot be set directly, this raises
+--"PLS-00302: component 'G_PRIVATE_GLOBAL' must be declared"
+begin
+	test_package.g_public_global := 1;
+end;
+/
+
+--Public variables still cannot be read directly in SQL.
+--This raises "ORA-06553: PLS-221: 'G_PUBLIC_GLOBAL' is not
+-- a procedure or is undefined"
+select test_package.g_public_global from dual;
+
+--Setters and getters with private variables are preferred.
+begin
+	test_package.set_private(1);
+end;
+/
+
+--This function can be used in SQL.
+select test_package.get_private from dual;
+
+
+--(NOT SHOWN IN BOOK.)
+--Run in another session.
+alter package test_package compile;
+
+--Now our session fails with:
+--ORA-04068: existing state of packages has been discarded
+--ORA-04061: existing state of package "JHELLER.TEST_PACKAGE" has been invalidated
+--ORA-04065: not executed, altered or dropped package "JHELLER.TEST_PACKAGE"
+select test_package.get_private from dual;
+
+
 
 ---------------------------------------------------------------------------
 -- Transaction control I – COMMIT and ROLLBACK
@@ -85,32 +152,77 @@ end;
 
 
 ---------------------------------------------------------------------------
--- Transaction control II – Consistency
+-- Transaction control II – row-level locking
 ---------------------------------------------------------------------------
 
-
---Session #1: These commands all run fine.
-truncate table transaction_test;
-
+--Session #1: These commands all run normally.
 insert into transaction_test values(0);
 commit;
-
 savepoint savepoint1;
 update transaction_test set a = 1;
 
---Session #2: This command hangs and waits for locked row.
+--Session #2: This command hangs, waiting for the locked row.
 update transaction_test set a = 2;
 
-
 --Session #1: Rollback to the previous savepoint.
---Notice that session #2 is still locked.
+--Notice that session #2 is still waiting.
 rollback to savepoint1;
 
-
---Session #3: This command works.  Session #2 is still waiting.
+--Session #3: This command steals the lock and completes.
+--Notice that session #2 is still waiting, on a row that is
+-- no longer locked.
 update transaction_test set a = 3;
 commit;
 
+
+---------------------------------------------------------------------------
+-- Transaction control II – isolation and consistency
+---------------------------------------------------------------------------
+
+--These subqueries will always return the same number.
+select
+	(select count(*) from transaction_test) count1,
+	(select count(*) from transaction_test) count2
+from dual;
+
+
+--These queries may return different numbers.
+declare
+	v_count1 number;
+	v_count2 number;
+begin
+	set transaction isolation level read committed;
+	select count(*) into v_count1 from transaction_test;
+	dbms_output.put_line(v_count1);
+	dbms_lock.sleep(5);
+	select count(*) into v_count2 from transaction_test;
+	dbms_output.put_line(v_count2);
+end;
+/
+
+
+--These queries will always return the same number.
+declare
+	v_count1 number;
+	v_count2 number;
+begin
+	set transaction isolation level serializable;
+	select count(*) into v_count1 from transaction_test;
+	dbms_output.put_line(v_count1);
+	dbms_lock.sleep(5);
+	select count(*) into v_count2 from transaction_test;
+	dbms_output.put_line(v_count2);
+end;
+/
+
+
+--(NOT SHOWN IN BOOK.)
+--Use this in a separate transaction to test the above PL/SQL blocks.
+insert into transaction_test values(2);
+commit;
+
+--Lock rows preemptively.
+select * from transaction_test for update;
 
 
 
