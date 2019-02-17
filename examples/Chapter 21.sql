@@ -59,7 +59,7 @@ end;
 --Private variables cannot be set directly, this raises
 --"PLS-00302: component 'G_PRIVATE_GLOBAL' must be declared"
 begin
-	test_package.g_public_global := 1;
+	test_package.g_private_global := 1;
 end;
 /
 
@@ -104,14 +104,15 @@ insert into transaction_test values(1);
 --Fails with: ORA-01722: invalid number
 update transaction_test set a = 'B';
 
---Still contains the original inserted value:
+--The table still contains the original inserted value:
 select * from transaction_test;
 
 
 --Reset the scratch table.
 truncate table transaction_test;
 
---Combine good INSERT and the bad UPDATE in a PL/SQL block.
+--Combine good INSERT and bad UPDATE in a PL/SQL block.
+--Raises: "ORA-01722: invalid number"
 begin
 	insert into transaction_test values(1);
 	update transaction_test set a = 'B';
@@ -191,7 +192,6 @@ declare
 	v_count1 number;
 	v_count2 number;
 begin
-	set transaction isolation level read committed;
 	select count(*) into v_count1 from transaction_test;
 	dbms_output.put_line(v_count1);
 	dbms_lock.sleep(5);
@@ -293,7 +293,7 @@ end;
 /
 
 
---This function fails yet does not raise an exception.
+--This function fails yet does not raise an exception in SQL.
 create or replace function test_function return number is
 	v_dummy varchar2(1);
 begin
@@ -339,14 +339,14 @@ end;
 -- Records
 ---------------------------------------------------------------------------
 
---Build user-defined type, which is similar to PL/SQL record.
+--Build user defined type, which is similar to PL/SQL record.
 create or replace type propellant_type is object
 (
 	propellant_id   number,
 	propellant_name varchar2(4000)
 );
 
---Example of %ROWTYPE, IS RECORD, and user-defined type.
+--Example of %ROWTYPE, IS RECORD, and user defined type.
 declare
 	--Create variables and types.
 	v_propellant1 propellant%rowtype;
@@ -360,7 +360,7 @@ declare
 
 	v_propellant3 propellant_type := propellant_type(null,null);
 begin
-	--Populate data.
+	--Populating data works the same for all three options.
 	v_propellant1.propellant_id := 1;
 	v_propellant1.propellant_name := 'test1';
 
@@ -383,13 +383,16 @@ declare
 	type launch_nt is table of launch%rowtype;
 	v_launches launch_nt;
 begin
+	--Static example:
 	select *
 	bulk collect into v_launches
 	from launch;
 
+	--Dynamic example:
 	execute immediate 'select * from launch'
 	bulk collect into v_launches;
 
+	--Iterating the nested table:
 	for i in 1 .. v_launches.count loop
 		dbms_output.put_line(v_launches(i).launch_id);
 		--Only print one value.
@@ -459,7 +462,7 @@ select
 	orbit_period,
 	round(get_orbit_period(apogee,perigee),2) my_orbit_period
 from satellite
-where perigee is not null
+where orbit_period is not null
 order by norad_id;
 
 
@@ -483,13 +486,14 @@ end;
 /
 
 
---Distinct launch apogees from custom PL/SQL function.
+--Distinct launch apogees from a custom PL/SQL function.
 select *
 from table(get_distinct
 ((
 	select cast(collect(apogee) as number_nt)
 	from launch
-)));
+)))
+order by 1;
 
 
 --Simpler, faster SQL version.
@@ -581,12 +585,12 @@ begin
 end;
 /
 
---Sample table.
-create table empty_table(a number);
+--Reset the scratch table.
+truncate table transaction_test;
 
 --Autonomous transaction works despite rollback.
 begin
-	insert into empty_table values(1);
+	insert into transaction_test values(1);
 	log_it('Inserting...', sysdate);
 	rollback;
 end;
@@ -596,7 +600,7 @@ end;
 select count(*) from application_log;
 
 --Even though the main transaction was rolled back.
-select count(*) from empty_table;
+select count(*) from transaction_test;
 
 
 
