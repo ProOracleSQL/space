@@ -10,7 +10,7 @@ If you have any questions or problems please contact Jon Heller at jon@jonheller
 How to Install
 --------------
 
-Install the Space data set before using these examples.
+Install SpaceDB before using these examples.
 
 
 License
