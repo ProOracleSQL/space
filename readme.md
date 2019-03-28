@@ -1,7 +1,7 @@
 Pro Oracle SQL Development Source Code
 ======================================
 
-See the examples/ directory for the source code used in Pro Oracle SQL Development, https://www.apress.com/9781484245163.
+See the examples/ directory for the source code used in Pro Oracle SQL Development (https://www.apress.com/9781484245163).
 
 For example, to count the number of launches per category:
 
