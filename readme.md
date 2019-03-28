@@ -10,13 +10,16 @@ The goals of SpaceDB are to provide a data set that is:
 3. **Interesting** - I assume that most people who use a database have at least some appreciation for space flight.
 4. **Real** - The data is not an imaginary.  If you spend time querying this data you will also learn something about the real world.
 
-This data set will be used in my upcoming book, Pro Oracle SQL Development.  I'm tired of every SQL example using `EMPLOYEES` or `PARTS`.
+This data set is used in Pro Oracle SQL Development, https://www.apress.com/9781484245163, because I'm tired of every SQL example using `EMPLOYEES` or `PARTS`.
 
+If you have any questions or problems please contact Jon Heller at jon@jonheller.org.
 
-Examples
---------
+Examples (book source code)
+---------------------------
 
-Count the number of launches per category:
+See the examples/ directory for all the code used in the book.
+
+For example, count the number of launches per category:
 
 	select launch_category, count(*)
 	from launch
@@ -105,3 +108,13 @@ License
 -------
 
 This data set and the code to load it are licensed under the LGPLv3.
+
+
+Acknowledgements
+----------------
+
+Special thanks to the following people:
+
+    Michael Rosenblum, the technical reviewer who helped find and fix many errors.
+    Jonathan Gennick, Jill Balzano, and everyone else at Apress for helping me create this book.
+    Lisa, Elliott, and Oliver, for patiently waiting for me to finish this project.
