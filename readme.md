@@ -1,3 +1,18 @@
+Pro Oracle SQL Development Source Code
+======================================
+
+See the examples/ directory for the source code used in Pro Oracle SQL Development, https://www.apress.com/9781484245163.
+
+For example, to count the number of launches per category:
+
+	select launch_category, count(*)
+	from launch
+	group by launch_category
+	order by count(*) desc;
+
+If you have any questions or problems please contact Jon Heller at jon@jonheller.org.
+
+
 SpaceDB v2.0.1
 ==============
 
@@ -10,21 +25,7 @@ The goals of SpaceDB are to provide a data set that is:
 3. **Interesting** - I assume that most people who use a database have at least some appreciation for space flight.
 4. **Real** - The data is not an imaginary.  If you spend time querying this data you will also learn something about the real world.
 
-This data set is used in Pro Oracle SQL Development, https://www.apress.com/9781484245163, because I'm tired of every SQL example using `EMPLOYEES` or `PARTS`.
-
-If you have any questions or problems please contact Jon Heller at jon@jonheller.org.
-
-Examples (book source code)
----------------------------
-
-See the examples/ directory for all the code used in the book.
-
-For example, count the number of launches per category:
-
-	select launch_category, count(*)
-	from launch
-	group by launch_category
-	order by count(*) desc;
+This data set is used in Pro Oracle SQL Development, https://www.apress.com/9781484245163, because I'm tired of every SQL example using `EMPLOYEES` or `PARTS`.  (But you can use the data set without the book.)
 
 
 How to Install
