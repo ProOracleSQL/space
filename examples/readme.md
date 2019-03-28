@@ -1,20 +1,19 @@
 Pro Oracle SQL Development Examples
 ===================================
 
-These files contain the SQL statements used in the book Pro Oracle SQL Development.
+These files contain the source code for Pro Oracle SQL Development: https://www.apress.com/9781484245163.
 
-The examples were built using SQL\*Plus formatting but I **strongly** recommend you develop SQL with a graphical IDE, such as PL/SQL Developer, Toad, or Oracle SQL Developer.  I only used SQL\*Plus to make the output simple and easy to add to the book.
+Each file contains all the examples used in a chapter.  The files are worksheets and should be run interactively in a graphical IDE such as PL/SQL Developer, Toad, or Oracle SQL Developer.  There are a few random installation steps that use SQL\*Plus, but you should not try to develop advanced SQL in SQL\*Plus.
 
+If you have any questions or problems please contact Jon Heller at jon@jonheller.org.
 
 How to Install
 --------------
 
-Install the SpaceDB to use these examples.  Each file is a worksheet that contains different queries for each chapter.
+Install the Space data set before using these examples.
 
 
 License
 -------
 
-TODO
-(I do *not* own the copyright on the book.  Whatever the copyright is on these examples, it does not grant you any privileges for the book.)
-
+These worksheets are licensed under the LGPLv3.
