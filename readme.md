@@ -117,4 +117,4 @@ Special thanks to the following people:
 
     Michael Rosenblum, the technical reviewer who helped find and fix many errors.
     Jonathan Gennick, Jill Balzano, and everyone else at Apress for helping me create this book.
-    Lisa, Elliott, and Oliver, for patiently waiting for me to finish this project.
+    Lisa, Elliott, and Oliver, who encouraged me and patiently waited for me to finish this project.
