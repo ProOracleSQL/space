@@ -18,14 +18,14 @@ SpaceDB v2.0.1
 
 SpaceDB is a data set that contains all orbital and suborbital launches, all satellites, and related information.  It's based on data from the JSR Launch Vehicle Database, 2017 Dec 28 Edition.
 
-The goals of SpaceDB are to provide a data set that is:
+SpaceDB provides a data set that is:
 
 1. **Simple** - The data can be easily loaded into an Oracle database.  And it can be easily understood.  There are 20 tables but almost all of the tables and columns are obvious and do not require a lot of domain knowledge.
-2. **Small** - The entire data set can be downloaded in 3 megabyte zip file.  You can install this on almost any system without going over your disk quota.
+2. **Small** - The entire data set can be downloaded in a 3 megabyte zip file.  You can install this data set on almost any system without going over your disk quota.
 3. **Interesting** - I assume that most people who use a database have at least some appreciation for space flight.
-4. **Real** - The data is not an imaginary.  If you spend time querying this data you will also learn something about the real world.
+4. **Real** - The data is not imaginary.  If you spend time querying this data you will also learn something about the real world.
 
-This data set is used in Pro Oracle SQL Development, https://www.apress.com/9781484245163, because I'm tired SQL examples using boring `EMPLOYEES` and `PARTS` tables.  You can use the data set without the book.
+This data set was created for Pro Oracle SQL Development (https://www.apress.com/9781484245163), because I'm tired of boring `EMPLOYEE` tables.  But this data set does not depend on anything in the book, and it can be installed on any Oracle database.
 
 
 How to Install
@@ -72,7 +72,7 @@ How to Install
 Schema Description
 ------------------
 
-Below is a simple text description of the tables, roughly ordered by their importance and their relationships.
+Below is a simple text description of the tables, roughly ordered by their importance and their relationships.  The most interesting data can be found in the `LAUNCH` and `SATELLITE` tables, which are easily joined by the column `LAUNCH_ID`.
 
 	LAUNCH
 		LAUNCH_PAYLOAD_ORG
