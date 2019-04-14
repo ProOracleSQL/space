@@ -12,22 +12,22 @@ select * from v$sqlcommand where lower(command_name) like '%alter%'
 ---------------------------------------------------------------------------
 
 --Create a simple table and see its metadata.
-create table simple_table(a number, b varchar2(100), c date);
+create table simple_table2(a number, b varchar2(100), c date);
 
 select dbms_metadata.get_ddl(
 	object_type => 'TABLE',
-	name        => 'SIMPLE_TABLE',
+	name        => 'SIMPLE_TABLE2',
 	schema      => sys_context('userenv', 'current_schema')
 ) from dual;
 
 select *
 from all_tables
-where table_name = 'SIMPLE_TABLE'
+where table_name = 'SIMPLE_TABLE2'
 	and owner = sys_context('userenv', 'current_schema');
 
 select *
 from all_tab_columns
-where table_name = 'SIMPLE_TABLE'
+where table_name = 'SIMPLE_TABLE2'
 	and owner = sys_context('userenv', 'current_schema');
 
 
