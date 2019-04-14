@@ -76,7 +76,7 @@ where launch_id = 1;
 -- Optimizer opportunities
 ---------------------------------------------------------------------------
 
---Psuedo-query using inline views.
+--Pseudo-query using inline views.
 select *
 from
 (
@@ -89,7 +89,7 @@ join
 	on view1.something = view2.something;
 
 
---Psuedo-query caused by view merging.
+--Pseudo-query caused by view merging.
 select *
 from a
 join b ...
