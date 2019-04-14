@@ -246,7 +246,7 @@ alter system flush buffer_cache;
 alter system kill session '123,12345,@1' immediate;
 
 
---Let users run a few specifc ALTER SYSTEM commands.
+--Let users run a few specific ALTER SYSTEM commands.
 create procedure sys.flush_shared_pool is
 begin
 	execute immediate 'alter system flush shared_pool';
