@@ -859,14 +859,14 @@ from dual;
 
 --Byte length semantics causes an error.
 create table byte_semantics_test(a varchar2(1));
-insert into byte_semantics_test values('é');
+insert into byte_semantics_test values('Ã©');
 
 --Character length semantics works correctly.
 create table character_semantics_test(a varchar2(1 char));
-insert into character_semantics_test values('é');
+insert into character_semantics_test values('Ã©');
 
 
---Use accent-independent linguistic comparision and sorting.
+--Use accent-independent linguistic comparison and sorting.
 alter session set nls_comp=linguistic;
 alter session set nls_sort=binary_ai;
 
