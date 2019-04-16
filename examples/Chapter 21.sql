@@ -91,7 +91,7 @@ select test_package.get_private from dual;
 
 
 ---------------------------------------------------------------------------
--- Transaction control I – COMMIT and ROLLBACK
+-- Transaction control I â€“ COMMIT and ROLLBACK
 ---------------------------------------------------------------------------
 
 --Create a simple table for transaction tests.
@@ -153,7 +153,7 @@ end;
 
 
 ---------------------------------------------------------------------------
--- Transaction control II – row-level locking
+-- Transaction control II â€“ row-level locking
 ---------------------------------------------------------------------------
 
 --Session #1: These commands all run normally.
@@ -177,7 +177,7 @@ commit;
 
 
 ---------------------------------------------------------------------------
--- Transaction control II – isolation and consistency
+-- Transaction control II â€“ isolation and consistency
 ---------------------------------------------------------------------------
 
 --These subqueries will always return the same number.
@@ -570,7 +570,7 @@ create table application_log
 	the_date date
 );
 
---Autnomous logging procedure.
+--Autonomous logging procedure.
 create or replace procedure log_it
 (
 	p_message varchar2,
