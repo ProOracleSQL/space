@@ -135,7 +135,7 @@ from
 			'select count(*) count from '||table_name
 		)) xml
 	from all_tables
-	where owner = 'SPACE'
+	where owner = sys_context('userenv', 'current_schema')
 		and table_name like 'LAUNCH%'
 )
 order by table_name;
@@ -178,7 +178,7 @@ q'[
 			from #TABLE_NAME#
 		!', '#TABLE_NAME#', table_name) sql_statement
 	from all_tables
-	where owner = 'SPACE'
+	where owner = sys_context('userenv', 'current_schema')
 		and table_name like 'LAUNCH%'
 ]'
 ))
@@ -210,7 +210,7 @@ create or replace package body ptf as
 end;
 /
 
---Call polymporhic table function.
+--Call polymorphic table function.
 select * from ptf.do_nothing(dual);
 
 
