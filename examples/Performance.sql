@@ -530,6 +530,38 @@ end;
 /
 
 
+--Large SQL statements are better loaded from SQL_ID.
+declare
+	v_sql_id constant varchar2(128) := '9z6r76q75uqap';
+	v_sql    clob;
+begin
+	--Find the SQL, it should be in one of these.
+	begin
+		select sql_fulltext into v_sql from gv$sql where sql_id = v_sql_id and rownum = 1;
+	exception when no_data_found then null;
+	end;
+
+	if v_sql is null then
+		begin
+			select sql_text into v_sql from dba_hist_sqltext where sql_id = v_sql_id and rownum = 1;
+		exception when no_data_found then
+			raise_application_error(-20000, 'Could not find this SQL_ID in GV$SQL or DBA_HIST_SQLTEXT.');
+		end;
+	end if;
+
+	--Create profile.
+	dbms_sqltune.import_sql_profile
+	(
+		sql_text    => v_sql,
+		name        => 'STOP_PARALLELISM',
+		description => 'Add useful description here.',
+		force_match => true,
+		profile     => sqlprof_attr('no_parallel')
+	);
+end;
+/
+
+
 
 --------------------------------------------------------------------------------
 --IO per user per snapshot.
