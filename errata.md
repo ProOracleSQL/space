@@ -15,3 +15,4 @@ Nice-to-have features for a second edition:
 5. "TEST_FUNCTION" in Chapter 21 - add a blank line or the NULL.
 6. Change the MODEL example to avoid multiple spaces.
 7. Improve index?
+8. In sequence caching, add discussion about large batch sizes and scalable sequences reducing contention on pk index because numbers are so different.
