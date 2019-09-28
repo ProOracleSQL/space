@@ -16,3 +16,4 @@ Nice-to-have features for a second edition:
 6. Change the MODEL example to avoid multiple spaces.
 7. Improve index?
 8. In sequence caching, add discussion about large batch sizes and scalable sequences reducing contention on pk index because numbers are so different.
+9. Table of contents is too large.  Is it possible to have a shorter table of contents first?  (Suggested by Nadir Doctor.)
