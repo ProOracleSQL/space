@@ -1,11 +1,11 @@
 Technical errors:
 -----------------
-None found yet
+1. The description for the partitioned outer join example in Chapter 7 should be "We want to see the results for launch vehicles with at least one relevant launch in 2017, broken down into months." instead of "We want to see the results for 2017, broken down into months."  Found by Keerthi Teja Tailam.
 
 Grammatical errors:
 -------------------
 1. Change "But SQL has the huge advantage of not needed..." to "needing".
-2. PDF is missing the words "Version control" in front of "isnít just a place to store an ìofficial copyî" in Chapter 2.
+2. PDF is missing the words "Version control" in front of "isn‚Äôt just a place to store an ‚Äúofficial copy‚Äù" in Chapter 2.
 
 Nice-to-have features for a second edition:
 -------------------------------------------
