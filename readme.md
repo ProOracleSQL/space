@@ -13,7 +13,7 @@ For example, to count the number of launches per category:
 If you have any questions or problems please contact Jon Heller at jon@jonheller.org.
 
 
-SpaceDB v2.0.1
+SpaceDB v2.0.2
 ==============
 
 SpaceDB is a data set that contains all orbital and suborbital launches, all satellites, and related information.  It's based on data from the JSR Launch Vehicle Database, 2017 Dec 28 Edition.
@@ -41,7 +41,7 @@ How to Install
 
 	In Unix this should work:
 
-		setenv NLS_LANG American_America.UTF8
+		export NLS_LANG=American_America.UTF8
 
 4. Start SQL\*Plus as a user who can either create another schema or load tables and data into their own schema.
 5. Either use your existing schema, or create a new one like this:
