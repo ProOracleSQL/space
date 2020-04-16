@@ -1,7 +1,6 @@
 Technical errors:
 -----------------
 1. The description for the partitioned outer join example in Chapter 7 should be "We want to see the results for launch vehicles with at least one relevant launch in 2017, broken down into months." instead of "We want to see the results for 2017, broken down into months."  Found by Keerthi Teja Tailam.
-2. Some of the column sizes are too large and causing errors like "ORA-01450: maximum key length (6398) exceeded" on some configurations.  I'll update the sample database soon with a fix.  Found by Jenny Fernandez
 
 Grammatical errors:
 -------------------
