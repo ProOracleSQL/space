@@ -12,8 +12,8 @@ Notes for future refreshes:
 2. Add some fields if the are populated with more data.  For example, I excluded launch.range because it was almost empty.
 3. References were excluded, they are too messy.
 4. Payload investigator names are not included.
-5. TODO: Should I use _IDs for everything?  Or keep some natural keys?
-
+5. TODO: Should I change ORGANIZATION.ORG_UTF8_NAME from VARCHAR2 to NVARCHAR2, for databases still stuck on non-UTF charactersets?
+6. TODO: Change the package to not export columns as VARCHAR2(4000). This was causing errors like "ORA-01450: maximum key length (6398) exceeded" on some configurations. Found by Jenny Fernandez.
 
 JSR issues:
 

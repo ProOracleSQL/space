@@ -13,7 +13,7 @@ For example, to count the number of launches per category:
 If you have any questions or problems please contact Jon Heller at jon@jonheller.org.
 
 
-SpaceDB v2.0.2
+SpaceDB v2.0.3
 ==============
 
 SpaceDB is a data set that contains all orbital and suborbital launches, all satellites, and related information.  It's based on data from the JSR Launch Vehicle Database, 2017 Dec 28 Edition.

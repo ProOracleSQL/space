@@ -16,7 +16,7 @@ declare
 
 	function is_equal(p_date1 date, p_date2 date) return boolean is
 	begin
-		if p_date1 = p_date2 then return true else return false end if;
+		if p_date1 = p_date2 then return true; else return false; end if;
 	end;
 begin
 	while is_equal(sysdate, sysdate) loop null;

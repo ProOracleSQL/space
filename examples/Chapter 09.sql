@@ -429,7 +429,7 @@ alter sequence some_sequence restart start with 1;
 declare
 	v_sequence_value number;
 begin
-	for i in 100 loop
+	for i in 1 .. 100 loop
 		v_sequence_value := some_sequence.nextval;
 	end loop;
 end;
