@@ -13,7 +13,7 @@ For example, to count the number of launches per category:
 If you have any questions or problems please contact Jon Heller at jon@jonheller.org.
 
 
-SpaceDB v2.0.3
+SpaceDB v2.0.4
 ==============
 
 SpaceDB is a data set that contains all orbital and suborbital launches, all satellites, and related information.  It's based on data from the JSR Launch Vehicle Database, 2017 Dec 28 Edition.
@@ -43,14 +43,14 @@ How to Install
 
 		export NLS_LANG=American_America.UTF8
 
-4. Start SQL\*Plus as a user who can either create another schema or load tables and data into their own schema.
-5. Either use your existing schema, or create a new one like this:
+4. Start SQL\*Plus as a user who can either create another schema or can load tables and data into their own schema.
+5. If you need to create a schema to hold the data, run commands like the ones below. (You may need to change "users" to "data" or some other tablespace name, depending on your configuration.)
 
 		SQL> create user space identified by "enterPasswordHere#1" quota unlimited on users;
-
-6. Run these commands to install the tables and data.  It should only take a minute.
-
 		SQL> alter session set current_schema = space;
+
+6. Run this command to install the tables and data.  It should only take a minute.
+
 		SQL> @oracle_create_space.sql
 
 **Postgres Instructions:**
@@ -108,7 +108,8 @@ Below is a simple text description of the tables, roughly ordered by their impor
 License
 -------
 
-This data set and the code to load it are licensed under the LGPLv3.
+The code to load the data was created by Jon Heller and is licensed under the LGPLv3.
+The data itself was created by Jonathan McDowell and is licensed under the Creative Commons CC-BY.
 
 
 Acknowledgements
