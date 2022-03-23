@@ -1,8 +1,8 @@
 ---------------------------------------------------------------------------
--- SQL alternatives
+-- SQL Alternatives
 ---------------------------------------------------------------------------
 
---Query:
+--Simple query used to compare with Query by Example (QBE) visual programming tool:
 select
 	norad_id,
 	satellite.launch_id,
@@ -15,6 +15,11 @@ order by norad_id;
 
 
 
+---------------------------------------------------------------------------
+-- Key Concepts
+---------------------------------------------------------------------------
+
+--Oracle 21c has 2557 reserved words, whereas most programming languages only have a few dozen.
 select count(*) from v$reserved_words;
 select * from v$reserved_words;
 
@@ -24,11 +29,10 @@ select * from v$reserved_words;
 -- NULL
 ---------------------------------------------------------------------------
 
---SQL*Plus formatting:
+--Initial SQL*Plus formatting to perfectly recreate results in book.
+--(But I hope that you're using an IDE instead of SQL*Plus.)
 set sqlprompt "SQL> ";
 alter session set current_schema = space;
-
---Queries:
 
 --Incorrect null comparisons:
 select count(*) from launch where apogee = null;
@@ -120,7 +124,7 @@ from launch
 full join satellite
 	on launch.launch_id = satellite.launch_id;
 
---This does not work, it raises the exception:
+--This does not work. It raises the exception:
 --ORA-01468: a predicate may reference only one outer-joined table
 select *
 from launch, satellite
@@ -138,5 +142,3 @@ cross join satellite;
 --Old-fashioned syntax:
 select *
 from launch, satellite;
-
-
