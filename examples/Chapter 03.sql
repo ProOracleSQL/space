@@ -107,7 +107,7 @@ create table simple_table(simple_column number);
 --Add sample data.
 insert into simple_table select 1 from dual;
 
---Gather statistics, if it's a performance problem.
+--Gather statistics if it's a performance problem.
 begin
 	dbms_stats.gather_table_stats(user, 'simple_table');
 end;
@@ -148,6 +148,7 @@ JHELLER@orcl9>
 ---------------------------------------------------------------------------
 
 --How many data dictionary objects are there?
+--(I think older versions of the database used to include dynamic performance views in DICTIONARY.)
 select distinct regexp_replace(regexp_replace(regexp_replace(regexp_replace(table_name, '^CDB_'), '^DBA_'), '^USER_'), '^ALL_')
 from dictionary
 where table_name not like '%V$%'
@@ -155,6 +156,23 @@ where table_name not like '%V$%'
 order by 1;
 
 
+--Querying LONG in the data dictionary does not work.
+--This query raises the exception "ORA-00932: inconsistent datatypes: expected CHAR got LONG".
+select table_name, column_name, data_default
+from dba_tab_columns
+where to_char(data_default) = '0'
+order by 1,2,3;
+
+
+--The preceding query requires an extra step to work.
+--First, Create a table with converted LONGs.
+create table convert_tab_columns as
+select table_name, column_name, to_lob(data_default) data_default
+from dba_tab_columns
+where data_default is not null;
+
+
+--SQL*Plus settings to format the large results.
 set linesize 120;
 set pagesize 1000;
 column table_name format a20;
@@ -162,21 +180,7 @@ column column_name format a11;
 column data_default format a12;
 
 
-
---Querying LONG in the data dictionary does not work.
---This throws 
-select table_name, column_name, data_type, data_default
-from dba_tab_columns
-where to_char(data_default) = '0'
-order by 1,2,3;
-
-
---This simple operation still requires an extra step.
-create table convert_tab_columns as
-select table_name, column_name, to_lob(data_default) data_default
-from dba_tab_columns
-where data_default is not null;
-
+--Use the new table instead.
 select table_name, column_name, to_char(data_default) data_default
 from convert_tab_columns
 where to_char(data_default) = '0'
@@ -190,10 +194,12 @@ order by 1,2,3;
 ---------------------------------------------------------------------------
 
 --How many dynamic performance views are there?
-select distinct regexp_replace(table_name, '^G')
-from dictionary
-where regexp_like(table_name, '^G?V\$')
-order by 1;
+--(Note that the SYNONYMS are named "V$%", but the actual objects are named "V_$%".)
+select object_name
+from dba_objects
+where owner = 'SYS'
+	and object_name like 'V\_$%' escape '\'
+order by object_name;
 
 
 
@@ -216,12 +222,11 @@ create table random_links(url varchar2(15));
 insert into random_links values('go' || unistr('\00f6') || 'gle.com');
 commit;
 
---Query data.  Depending on your IDE, it may look like a regular google.com.
+--Query data. Depending on your IDE, it may look like a regular google.com.
 select * from random_links;
 
 --Look at the details.
-select dump(url) from random_links;
-
+select dump(url,16) from random_links;
 
 
 --Setup for getting metadata.
@@ -234,3 +239,7 @@ select dbms_metadata.get_ddl(
 	name        => 'LAUNCH',
 	schema      => 'SPACE') ddl
 from dual;
+
+
+--Get the name of the machine used to connect to the database.
+select sys_context('userenv', 'host') from dual;
