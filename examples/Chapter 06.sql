@@ -29,8 +29,7 @@ order by 1,2,3;
 
 
 --ANSI syntax equivalant.
---With such a small size it's still not obvious how this would be
---easier to read and debug.
+--(But for small queries, ANSI syntax is not clearly easier to debug.)
 select launch.launch_tag, stage.stage_name, stage.engine_count
 from launch
 join launch_vehicle_stage
@@ -42,7 +41,7 @@ order by 1,2,3;
 
 
 ---------------------------------------------------------------------------
--- Problem: Too Much Context
+-- Too Much Context
 ---------------------------------------------------------------------------
 
 
@@ -60,12 +59,12 @@ order by 1,2;
 
 
 --Common table expression.
---Let's find some recent planetary exploration and deep space missions.
+--Recent planetary exploration and deep space missions.
 with launches as
 (
 	select *
 	from launch
-	where launch_category in ('deep space')
+	where launch_category = 'deep space'
 		and launch_date >= date '2000-01-01'
 )
 select *
@@ -90,7 +89,7 @@ select * from (select * from dual);
 
 --#1: Join everything at once: 
 select ...
-from table1,table2,table3,table4,table5,table6,table7,table8
+from table1,table2,table3,table4,table5,table6,table7,table8,table9,table10
 where ...;
 
 --#2: Use inline views:
@@ -98,12 +97,12 @@ select *
 from
 (
 	select ...
-	from table1,table2,table3,table4
+	from table1,table2,table3,table4,table5
 	where ...
 ),
 (
 	select ...
-	from table5,table6,table7,table8
+	from table6,table7,table8,table9,table10
 	where ...
 )
 where ...;
