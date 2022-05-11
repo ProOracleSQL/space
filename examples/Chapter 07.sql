@@ -1,8 +1,8 @@
 ---------------------------------------------------------------------------
--- Operators, Expressions, Conditions, and Functions
+-- Operators, Functions, Expressions, and Conditions
 ---------------------------------------------------------------------------
 
---Bad query with too many dangerous type conversion.
+--Bad query with dangerous type conversions.
 select *
 from launch
 where to_char(to_date(launch_date), 'YYYY-Mon-DD') = '1957-Oct-04';
@@ -60,7 +60,7 @@ connect by level <= 100;
 
 
 --Null comparison.
---This function breaks the rule of "null never equals null", it returns "A".
+--This function breaks the rule of "null never equals null" - it returns "A".
 select decode(null, null, 'A', 'B') null_decode from dual;
 
 
@@ -72,7 +72,7 @@ select decode(null, null, 'A', 'B') null_decode from dual;
 --Partitioned outer join example.
 --Launches per launch vehicle family, per month of 2017.
 select
-	launches.lv_family_code family,
+	launches.lv_family_code,
 	months.launch_month,
 	nvl(launch_count, 0) launch_count	
 from
@@ -97,7 +97,7 @@ left join
 			date '2017-01-01' and timestamp '2017-12-31 23:59:50'
 	group by to_char(launch_date, 'YYYY-MM'), lv_family_code
 ) launches
-	partition by (lv_family_code)
+	partition by (launches.lv_family_code)
 	on months.launch_month = launches.launch_month
 order by 1,2,3;
 
@@ -315,6 +315,23 @@ from launch
 join launch_vehicle
 	on launch.lv_id = launch_vehicle.lv_id
 where launch_category = 'deep space'
+order by launch.launch_date;
+
+
+--(SECOND EDITION ONLY.)
+--Same as above query, but uses the 21c WINDOW_CLAUSE to avoid duplicating window logic.
+--Deep space launches with analytic functions per family.
+select
+	to_char(launch_date, 'YYYY-MM-DD') launch_date,
+	flight_id2 spacecraft,
+	lv_family_code family,
+	trunc(launch_date) - lag(trunc(launch_date)) over my_window days_between,
+	count(*) over my_window running_total
+from launch
+join launch_vehicle
+	on launch.lv_id = launch_vehicle.lv_id
+where launch_category = 'deep space'
+window my_window as (partition by lv_family_code order by launch_date)
 order by launch.launch_date;
 
 
@@ -769,7 +786,7 @@ cross join xmltable(
 	'/ROWSET/ROW'
 	passing launch_xml.xml
 	columns
-		launch_id  number path 'LAUNCH_ID',
+		launch_id number path 'LAUNCH_ID',
 		launch_category varchar2(31) path 'LAUNCH_CATEGORY'
 )
 group by launch_category
@@ -797,13 +814,16 @@ select json_object('string' value 'a', 'array' value json_array(1,2))
 from dual;
 
 
---Create table to hold JSON launch data.
+--Create a table to hold JSON launch data.
 create table launch_json
 (
 	launch_id number,
+	--19c and below - Use VARCHAR2 or CLOB datatype, and a constraint:
 	json clob,
-	constraint launch_json_pk primary key(launch_id),
-	constraint launch_json_ck check (json is json)
+	constraint launch_json_ck check (json is json),
+	--21c and above - Use JSON datatype:
+	--json json,
+	constraint launch_json_pk primary key(launch_id)
 );
 
 
@@ -821,8 +841,31 @@ where launch_category in ('orbital', 'deep space');
 commit;
 
 
+--(SECOND EDITION ONLY.)
+--(This query is for version 19c and higher.)
+--Convert each SATELLITE row into a JSON file.
+select json_object(*) satellite_json
+from satellite
+order by satellite_id;
+
+
+--(SECOND EDITION ONLY.)
+--(This query is for version 19c and higher.)
+--Convert multiple SATELLITE rows into a single JSON file.
+select json_arrayagg(json_object(*) returning clob) satellite_json
+from satellite
+where satellite_id <= 3;
+
+
 --View JSON data in LAUNCH_JSON.
 select to_char(json) launch_data
+from launch_json
+order by launch_id;
+
+
+--(SECOND EDITION ONLY.)
+--View JSON data in LAUNCH_JSON (if JSON data type was used).
+select json_serialize(json) launch_data
 from launch_json
 order by launch_id;
 
@@ -876,6 +919,9 @@ where org_utf8_name like 'Aero-Club de France%';
 
 
 --Regular sort.
+--(Reset session sort to the default.)
+alter session set nls_sort=binary;
+
 select org_utf8_name
 from organization
 order by org_utf8_name;
