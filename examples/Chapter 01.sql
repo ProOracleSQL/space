@@ -4,14 +4,14 @@
 
 --Simple query used to compare with Query by Example (QBE) visual programming tool:
 select
-	norad_id,
+	satellite.norad_id,
 	satellite.launch_id,
-	launch_date
+	launch.launch_date
 from satellite
 join launch
 	on satellite.launch_id = launch.launch_id
-where trunc(launch_date) = date '1957-10-04'
-order by norad_id;
+where trunc(launch.launch_date) = date '1957-10-04'
+order by satellite.norad_id;
 
 
 
@@ -45,9 +45,9 @@ select count(*) from launch where apogee is not null;
 --Incorrect null "not in" usage:
 select count(*)
 from launch
-where launch_id not in
+where launch.launch_id not in
 (
-	select launch_id
+	select satellite.launch_id
 	from satellite
 );
 
