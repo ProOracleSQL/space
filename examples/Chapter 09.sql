@@ -8,7 +8,7 @@ select * from v$sqlcommand where lower(command_name) like '%alter%'
 
 
 ---------------------------------------------------------------------------
--- Table
+-- Tables
 ---------------------------------------------------------------------------
 
 --Create a simple table and see its metadata.
@@ -74,6 +74,25 @@ create table iot_table
 organization index;
 
 
+--(SECOND EDITION ONLY.)
+--Create immutable table.
+SQL> create immutable table immutable_test(a number)
+  2  no drop until 16 days idle
+  3  no delete until 16 days after insert;
+
+Table created.
+
+SQL> insert into immutable_test values(1);
+
+1 row created.
+
+SQL> update immutable_test set a = -1;
+update immutable_test set a = -1;
+                              *
+ERROR at line 1:
+ORA-05715: operation not allowed on the blockchain or immutable table
+
+
 --Compression.
 --Create a compressed table.
 create table compressed_table(a number) compress;
@@ -133,7 +152,7 @@ select * from identity_table;
 
 
 ---------------------------------------------------------------------------
--- Constraint
+-- Constraints
 ---------------------------------------------------------------------------
 
 --This statement on a NOT NULL column can use an index.
@@ -235,7 +254,7 @@ select * from v$px_process;
 
 
 ---------------------------------------------------------------------------
--- Index
+-- Indexes
 ---------------------------------------------------------------------------
 
 --Comparing linear and binary search.
@@ -366,7 +385,7 @@ alter table launch_partition truncate partition p_orb;
 
 
 ---------------------------------------------------------------------------
--- View
+-- Views
 ---------------------------------------------------------------------------
 
 --View with "OR REPLACE" and "FORCE".
@@ -395,7 +414,7 @@ SELECT "A1"."A" "A" FROM  (SELECT "A2"."A" "A" FROM  (SELECT 1 "A",2 "B" FROM "S
 
 
 ---------------------------------------------------------------------------
--- User
+-- Users
 ---------------------------------------------------------------------------
 
 --Create an application user account.
@@ -416,7 +435,7 @@ quota unlimited on my_application_tablespace;
 
 
 ---------------------------------------------------------------------------
--- Sequence
+-- Sequences
 ---------------------------------------------------------------------------
 
 --Create and alter a sequence.
@@ -436,9 +455,20 @@ end;
 /
 
 
+--(SECOND EDITION ONLY.)
+--Create a scalable sequence and show the first value.
+create sequence scalable_sequence_test scale;
+
+select to_char(scalable_sequence_test.nextval) nextval from dual;
+
+NEXTVAL
+-------
+1028280000000000000000000001
+
+
 
 ---------------------------------------------------------------------------
--- Synonym
+-- Synonyms
 ---------------------------------------------------------------------------
 
 --Create synonym example.
@@ -447,7 +477,7 @@ create synonym launch for space.launch;
 
 
 ---------------------------------------------------------------------------
--- Materialized View
+-- Materialized Views
 ---------------------------------------------------------------------------
 
 --Ideal solution using (non-existent) assertions.
@@ -494,7 +524,7 @@ commit;
 
 
 ---------------------------------------------------------------------------
--- Database Link
+-- Database Links
 ---------------------------------------------------------------------------
 
 --Create a database link to the same database, for testing.
@@ -533,7 +563,7 @@ select sys_context('USERENV', 'host') from dual;
 
 
 ---------------------------------------------------------------------------
--- Grant and Revoke
+-- GRANT and REVOKE
 ---------------------------------------------------------------------------
 
 --Powerful grant, but does not extend to future objects on space schema.
