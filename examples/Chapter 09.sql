@@ -461,10 +461,6 @@ create sequence scalable_sequence_test scale;
 
 select to_char(scalable_sequence_test.nextval) nextval from dual;
 
-NEXTVAL
--------
-1028280000000000000000000001
-
 
 
 ---------------------------------------------------------------------------
@@ -535,10 +531,6 @@ using '(description=(address=(protocol=tcp)(host=localhost)
 (port=1521))(connect_data=(server=dedicated)(sid=orcl)))';
 
 select * from dual@myself;
-
-DUMMY
------
-X
 
 
 
