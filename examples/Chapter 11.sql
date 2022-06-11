@@ -12,6 +12,7 @@ SQL> select * from dual; --This doesn't work.
   2
 
 
+--(This code may not fail in modern versions of SQL*Plus.)
 SQL> --Example of bad comment.
 SQL> select 1 from dual;
 
@@ -94,7 +95,7 @@ select * from
 	select * from dual
 ) good_name;
 
---Don't cram everything together:
+--Don't cram everything together.
 select * from (select * from dual);
 
 
