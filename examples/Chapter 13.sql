@@ -70,11 +70,13 @@ select * from launch;
 
 --Left-aligned.
 select *
-from dual;
+from dual
+where 1 = 1;
 
 --Right-aligned with spaces.
 SELECT *
-  FROM dual;
+  FROM dual
+ WHERE 1 = 1;
 
 
 
