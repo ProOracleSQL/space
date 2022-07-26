@@ -49,15 +49,15 @@ where name = 'Date of Birth'
 	and to_date(value, 'YYYY-MM-DD') = date '2011-04-28';
 
 
---(NOT SHOWN IN BOOK.)
---Type-safe way to query with new version 12.2 syntax.
+--(SECOND EDITION ONLY.)
+--New type-safe way to query a stringly-typed EAV.
 select *
 from bad_eav
 where name = 'Date of Birth'
 	and to_date(value default null on conversion error, 'YYYY-MM-DD') = date '2011-04-28';
 
 
---Type- safe way to query a stringly-typed EAV.
+--Old type-safe way to query a stringly-typed EAV.
 select *
 from
 (
@@ -222,8 +222,7 @@ begin
 	select /*+ parallel(8) */ count(*)
 	into v_count
 	from bad_eav
-	where name = 'Date of Birth'
-		and value = date '2011-04-28';
+	where value = date '2011-04-28';
 exception when others then
 	dbms_output.put_line('Error: '||sqlcode);
 end;
