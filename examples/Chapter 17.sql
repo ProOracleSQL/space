@@ -25,15 +25,15 @@ end;
 /
 
 
---Expression is ignored, no divide-by-zero error is raised.
+--The expression is ignored and no divide-by-zero error is raised.
 select * from dual where exists (select 1/0 from dual);
 
 
---Generate execution plan.
+--Generate explain plan.
 explain plan for
 select * from launch where launch_id = 1;
 
---Display execution plan.
+--Display explain plan.
 select *
 from table(dbms_xplan.display(format => 'basic +rows +cost'));
 
@@ -127,7 +127,7 @@ select * from table(dbms_xplan.display(format => 'basic +rows'));
 
 --Generate an optimizer trace file.
 alter session set events='10053 trace name context forever, level 1';
-select * from space.launch where site_id = 1895;
+select /* force hard parse */ * from launch where site_id = 1895;
 alter session set events '10053 trace name context off';
 
 --Find the latest .trc file in this directory:
@@ -197,8 +197,8 @@ select * from table(dbms_xplan.display_cursor(
 	sql_id =>
 	(
 		select distinct sql_id from v$sql
-		where sql_fulltext like '%1970%'
-		--where sql_fulltext like '%2050%'
+		where sql_fulltext like '%= ''1970''%'
+		--where sql_fulltext like '%= ''2050''%'
 			and sql_fulltext not like '%quine%'
 	),
 	format => 'adaptive')
