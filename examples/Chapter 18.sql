@@ -211,7 +211,7 @@ end;
 
 
 --Find snapshots, for generating AWR reports.
-select *
+select dbid, snap_id, begin_interval_time, end_interval_time
 from dba_hist_snapshot
 order by begin_interval_time desc;
 
@@ -219,10 +219,10 @@ order by begin_interval_time desc;
 --Generate AWR report.
 select *
 from table(dbms_workload_repository.awr_report_html(
-	l_dbid     => (select dbid from v$database),
+	l_dbid     => 985569476,
 	l_inst_num => 1,
 	l_bid      => 6709,
-	l_eid      => 6709
+	l_eid      => 6710
 ));
 
 
@@ -258,10 +258,56 @@ select dbms_sqltune.report_tuning_task('TASK_18972') from dual;
 
 
 ---------------------------------------------------------------------------
+--(SECOND EDITION ONLY.)
+-- Automatic Indexing
+---------------------------------------------------------------------------
+
+--Check current automatic indexing configuration.
+select * from dba_auto_index_config order by parameter_name;
+
+
+--Enable REPORT ONLY (invisible indexes).
+begin
+	dbms_auto_index.configure('AUTO_INDEX_MODE','REPORT ONLY');
+end;
+/
+
+
+--Allow automatic indexes for the SPACE schema.
+begin
+	dbms_auto_index.configure('AUTO_INDEX_SCHEMA', 'SPACE', true);
+end;
+/
+
+
+--Create large table, gather stats, run query that needs an index.
+create table satellite2 as select * from satellite;
+
+begin
+	for i in 1 .. 100 loop
+		insert into satellite2 select * from satellite;
+	end loop;
+end;
+/
+
+begin
+	dbms_stats.gather_table_stats(null, 'satellite2');
+end;
+/
+
+select * from satellite2 where satellite_id = 1;
+
+
+--Generate report for the last index created.
+select dbms_auto_index.report_last_activity from dual;
+
+
+
+---------------------------------------------------------------------------
 -- Find currently-running slow SQL
 ---------------------------------------------------------------------------
 
---All SQL statements that are currenty running.
+--All SQL statements that are currently running.
 select
 	elapsed_time/1000000 seconds,
 	executions,
@@ -340,8 +386,11 @@ end;
 /
 
 insert into launch2 select * from launch;
-
 commit;
+
+
+--Temporarily disable features that may ruin the example.
+alter session set result_cache_mode = manual;
 
 
 --Distinct dates a satellite was launched.
@@ -375,8 +424,9 @@ from launch2 join satellite using (launch_id);
 
 --Second execution has HASH JOIN, good cardinalities, good performance.
 select * from table(dbms_xplan.display_cursor(
-	sql_id => '82nk6712jkfg2',
-	format => 'iostats last'));
+	sql_id          => '82nk6712jkfg2',
+	cursor_child_no => null, --Improved plan may be a child cursor.
+	format          => 'iostats last'));
 
 
 
@@ -408,7 +458,7 @@ from dual;
 ---------------------------------------------------------------------------
 
 --Query that shouldn't run in parallel.
-explain plan for select /*+parallel*/ * from satellite;
+explain plan for select /*+parallel(2)*/ * from satellite;
 
 select * from table(dbms_xplan.display(format => 'basic +note'));
 
@@ -417,7 +467,7 @@ select * from table(dbms_xplan.display(format => 'basic +note'));
 begin
 	dbms_sqltune.import_sql_profile
 	(
-		sql_text    => 'select /*+parallel*/ * from satellite',
+		sql_text    => 'select /*+parallel(2)*/ * from satellite',
 		name        => 'STOP_PARALLELISM',
 		force_match => true,
 		profile     => sqlprof_attr('no_parallel')
