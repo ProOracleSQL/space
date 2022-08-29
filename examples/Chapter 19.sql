@@ -202,3 +202,76 @@ begin
 		'.launch_mission_text');
 end;
 /
+
+
+
+---------------------------------------------------------------------------
+-- Multilingual Engine
+-- (SECOND EDITION ONLY.)
+---------------------------------------------------------------------------
+
+--Simple multilingual engine example.
+begin
+	dbms_mle.eval
+	(
+		context_handle => dbms_mle.create_context(),
+		language_id    => 'JAVASCRIPT',
+		source         => 'console.log("Hello World!");'
+	);
+end;
+/
+
+
+--Example of where Oracle's precision starts to fail.
+select
+	to_char(1234567890123456789012345678901234567890123, 'TM') value
+from dual;
+
+
+--Use BigInt for better precision.
+begin
+	dbms_mle.eval
+	(
+		context_handle => dbms_mle.create_context(),
+		language_id    => 'JAVASCRIPT',
+		source         => 'console.log(
+			1234567890123456789012345678901234567890123n
+			.toString());'
+	);
+end;
+/
+
+
+
+---------------------------------------------------------------------------
+-- Spatial
+-- (SECOND EDITION ONLY.)
+---------------------------------------------------------------------------
+
+--Create function to get miles between two geographic coordinates.
+create or replace function get_miles_between
+(
+	p_latitude1  number,
+	p_longitude1 number,
+	p_latitude2  number,
+	p_longitude2 number
+) return number is
+begin
+	return sdo_geom.sdo_distance
+	(
+		sdo_geometry(2001,4326,null,sdo_elem_info_array(1, 1, 1),
+			sdo_ordinate_array(p_latitude1,p_longitude1)),
+		sdo_geometry(2001,4326,null,sdo_elem_info_array(1, 1, 1),
+			sdo_ordinate_array(p_latitude2,p_longitude2))
+		,1
+		,'unit=mile'
+	);
+end get_miles_between;
+/
+
+--Miles between Wallops and White Sands.
+select round(get_miles_between(
+	wallops.latitude,     wallops.longitude,
+	white_sands.latitude, white_sands.longitude)) miles
+from (select * from site where site_id = 1821) wallops
+cross join (select * from site where site_id = 1895) white_sands;
