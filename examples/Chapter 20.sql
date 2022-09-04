@@ -273,6 +273,7 @@ select * from get_row_count(launch);
 
 ---------------------------------------------------------------------------
 -- Method5
+-- (FIRST EDITION ONLY - Removed from second edition.)
 ---------------------------------------------------------------------------
 
 select *
