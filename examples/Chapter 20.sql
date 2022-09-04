@@ -216,6 +216,62 @@ select * from ptf.do_nothing(dual);
 
 
 ---------------------------------------------------------------------------
+-- SQL Macros
+-- (SECOND EDITION ONLY.)
+---------------------------------------------------------------------------
+
+--Convert a date into a specific kind of ISO8601 formatted string.
+create or replace function to_iso8601(p_date date)
+	return varchar2 sql_macro(scalar) is
+begin
+	return
+	q'!
+		to_char(p_date, 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+	!';
+end;
+/
+
+SELECT TO_ISO8601(START_DATE), TO_ISO8601(STOP_DATE) FROM SITE;
+
+
+--Compare a regular view with a table macro parameterized view.
+create or replace view launch_view as select * from launch;
+
+create or replace function launch_macro(p_launch_category varchar2) return varchar2 sql_macro is
+begin
+	return
+	q'[
+		select *
+		from launch
+		where launch_category = p_launch_category
+	]';
+end;
+/
+
+select * from launch_view where launch_category = 'orbital';
+
+select * from launch_macro(p_launch_category => 'orbital');
+
+
+--SQL Macro for counting the number of rows in a table.
+create or replace function get_row_count
+(
+	p_table dbms_tf.table_t
+) return varchar2 sql_macro(table) is
+begin
+	return
+	q'!
+		select count(*) row_count
+		from p_table
+	!';
+end;
+/
+
+select * from get_row_count(launch);
+
+
+
+---------------------------------------------------------------------------
 -- Method5
 ---------------------------------------------------------------------------
 
