@@ -50,13 +50,13 @@ create or replace package body test_package is
 end;
 /
 
---Public variables can be read or set directly in PL/SQL.
+--Public variables can be get or set directly in PL/SQL.
 begin
 	test_package.g_public_global := 1;
 end;
 /
 
---Private variables cannot be set directly, this raises
+--Private variables cannot be set directly. This code raises:
 --"PLS-00302: component 'G_PRIVATE_GLOBAL' must be declared"
 begin
 	test_package.g_private_global := 1;
@@ -64,8 +64,8 @@ end;
 /
 
 --Public variables still cannot be read directly in SQL.
---This raises "ORA-06553: PLS-221: 'G_PUBLIC_GLOBAL' is not
--- a procedure or is undefined"
+--This code raises "ORA-06553: PLS-221: 'G_PUBLIC_GLOBAL' is
+-- not a procedure or is undefined"
 select test_package.g_public_global from dual;
 
 --Setters and getters with private variables are preferred.
@@ -271,6 +271,21 @@ end;
 -- Cursors
 ---------------------------------------------------------------------------
 
+--Simple example of a ref cursor.
+-- (SECOND EDITION ONLY.)
+create or replace function ref_cursor_test
+return sys_refcursor is
+	v_cursor sys_refcursor;
+begin
+	--Static ref cursor based on a query.
+	open v_cursor for select * from launch;
+	--Dynamic ref cursor based on a string.
+	open v_cursor for 'select * from launch';
+	return v_cursor;
+end;
+/
+
+
 --Static and dynamic SELECT INTO for one row.
 declare
 	v_count number;
@@ -328,7 +343,7 @@ begin
 		select * from launch where rownum <= 5
 	) loop
 		--Do something with result set here:
-		dbms_output.put_line(launches.launch_tag);		
+		dbms_output.put_line(launches.launch_tag);
 	end loop;
 end;
 /
@@ -339,14 +354,14 @@ end;
 -- Records
 ---------------------------------------------------------------------------
 
---Build user defined type, which is similar to PL/SQL record.
+--Build user-defined type, which is similar to PL/SQL record.
 create or replace type propellant_type is object
 (
 	propellant_id   number,
 	propellant_name varchar2(4000)
 );
 
---Example of %ROWTYPE, IS RECORD, and user defined type.
+--Example of %ROWTYPE, IS RECORD, and user-defined type.
 declare
 	--Create variables and types.
 	v_propellant1 propellant%rowtype;
@@ -360,7 +375,7 @@ declare
 
 	v_propellant3 propellant_type := propellant_type(null,null);
 begin
-	--Populating data works the same for all three options.
+	--Populating data can work the same for all three options:
 	v_propellant1.propellant_id := 1;
 	v_propellant1.propellant_name := 'test1';
 
@@ -369,6 +384,12 @@ begin
 
 	v_propellant3.propellant_id := 3;
 	v_propellant3.propellant_name := 'test3';
+
+	--Since 18c, records can use qualified expressions:
+	v_propellant2 := propellant_rec(2, 'test2');
+
+	--User-defined types can also use constructors:
+	v_propellant3 := propellant_type(3, 'test3');
 end;
 /
 
@@ -540,7 +561,9 @@ end;
 
 --Call parallel pipelined function.
 select *
-from table(parallel_pipe(cursor(select /*+ parallel */ * from launch)));
+from table(parallel_pipe(cursor(
+	select /*+ parallel(2) */ * from launch
+)));
 
 
 
@@ -559,7 +582,7 @@ end;
 /
 
 --Call the function to create the table.
-select test_function from dual;
+select /*+ no_result_cache */ test_function from dual;
 
 
 --Autonomous transaction for logging
@@ -596,11 +619,11 @@ begin
 end;
 /
 
---The logging table has the original log message.
-select count(*) from application_log;
-
---Even though the main transaction was rolled back.
+--The main transaction was rolled back.
 select count(*) from transaction_test;
+
+--But the logging table has the original log message.
+select count(*) from application_log;
 
 
 
@@ -621,7 +644,7 @@ begin
 		when inserting then
 			dbms_output.put_line('inserting '||:new.a);
 		when updating('a') then
-			dbms_output.put_line('updating a from '||
+			dbms_output.put_line('updating from '||
 				:old.a||' to '||:new.a);
 		when deleting then
 			dbms_output.put_line('deleting '||:old.a);
@@ -692,6 +715,10 @@ begin
 		dbms_output.put_line('Version 12');
 	$elsif dbms_db_version.ver_le_18 $then
 		dbms_output.put_line('Version 18');
+	$elsif dbms_db_version.ver_le_19 $then
+		dbms_output.put_line('Version 19');
+	$elsif dbms_db_version.ver_le_21 $then
+		dbms_output.put_line('Version 21');
 	$else
 		dbms_output.put_line('Future version');
 	$end
