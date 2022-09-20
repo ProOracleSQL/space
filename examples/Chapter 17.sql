@@ -170,7 +170,7 @@ from
 ) launch_satellites
 join site
 	on launch_satellites.site_id = site.site_id
-where site.site_id = 1;
+where site.site_id = 200;
 
 
 --Simple unnesting example.  (Launches with a satelite.)
