@@ -280,6 +280,7 @@ begin
 	--Static ref cursor based on a query.
 	open v_cursor for select * from launch;
 	--Dynamic ref cursor based on a string.
+	--(A more realistic example would include bind variables.)
 	open v_cursor for 'select * from launch';
 	return v_cursor;
 end;
