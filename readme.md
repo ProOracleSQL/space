@@ -1,7 +1,7 @@
 Pro Oracle SQL Development Source Code
 ======================================
 
-See the examples directory for the source code used in Pro Oracle SQL Development (https://www.apress.com/9781484245163).
+See the examples directory for the source code used in Pro Oracle SQL Development. The examples work for both the newest second edition (www.apress.com/9781484288672) and the original first edition (www.apress.com/9781484245163).
 
 For example, to count the number of launches per category:
 
@@ -25,7 +25,7 @@ SpaceDB provides a data set that is:
 3. **Interesting** - I assume that most people who use a database have at least some appreciation for space flight.
 4. **Real** - The data is not imaginary.  If you spend time querying this data you will also learn something about the real world.
 
-This data set was created for Pro Oracle SQL Development (https://www.apress.com/9781484245163), because I'm tired of boring `EMPLOYEE` tables.  But this data set does not depend on anything in the book, and it can be installed on any Oracle database.
+This data set was created for Pro Oracle SQL Development (www.apress.com/9781484288672), because I'm tired of boring `EMPLOYEE` tables.  But this data set does not depend on anything in the book, and it can be installed on any Oracle database.
 
 
 How to Install
