@@ -1,3 +1,13 @@
+Second edition:
+===============
+
+1. Added note about V$RESERVED_WORDS count in "Chapter 01.sql" possibly being different depending on version and edition. (Found by Do Nhu Vy.)
+
+
+
+First edition:
+==============
+
 Technical errors:
 -----------------
 1. The description for the partitioned outer join example in Chapter 7 should be "We want to see the results for launch vehicles with at least one relevant launch in 2017, broken down into months." instead of "We want to see the results for 2017, broken down into months."  Found by Keerthi Teja Tailam.

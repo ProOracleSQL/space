@@ -19,7 +19,8 @@ order by satellite.norad_id;
 -- Key Concepts
 ---------------------------------------------------------------------------
 
---Oracle 21c has 2557 reserved words, whereas most programming languages only have a few dozen.
+--Oracle 21c has approximately 2557 reserved words, whereas most programming languages only have a few dozen.
+--(The exact count may depend on your precise version and edition.)
 select count(*) from v$reserved_words;
 select * from v$reserved_words;
 
